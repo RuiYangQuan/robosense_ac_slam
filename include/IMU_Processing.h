@@ -257,7 +257,7 @@ class ImuProcess
         outcloud->points.emplace_back(added_pt);
       }
     }
-    std::cout << "undistort, size in: "<<cloud_ptr->size()<<", out: " << outcloud->size() << std::endl;
+    //std::cout << "undistort, size in: "<<cloud_ptr->size()<<", out: " << outcloud->size() << std::endl;
     return true;
   }
 
@@ -318,8 +318,8 @@ class ImuProcess
     /* 1. get rel_tf at lidar_cloud->header.stamp */
     Pose rel_tf_begin;
     Pose rel_tf_end;
-    cout << std::fixed << "undistortPointCloud from: " << cloud_ts[0]
-           << " to: " << cloud_ts.back() << REND;
+    // cout << std::fixed << "undistortPointCloud from: " << cloud_ts[0]
+    //        << " to: " << cloud_ts.back() << REND;
     bool ret1 = interpolate(rel_tf_queue_, cloud_ts[0],
                             rel_tf_begin);
     bool ret2 = interpolate(rel_tf_queue_, cloud_ts.back(),

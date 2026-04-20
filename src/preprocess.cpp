@@ -4,31 +4,39 @@
 #define RETURN0     0x00
 #define RETURN0AND1 0x10
 
+/**
+ * @brief 构造函数：初始化预处理参数，从配置文件加载设置
+ * @param cfg_path 配置文件路径
+ */
 Preprocess::Preprocess(const std::string cfg_path)
   :feature_enabled(0), lidar_type(AVIA), blind(0.01), point_filter_num(1)
 {
-  inf_bound = 10;
-  N_SCANS   = 6;
-  group_size = 8;
-  disA = 0.01;
-  disA = 0.1; // B?
-  p2l_ratio = 225;
-  limit_maxmid =6.25;
-  limit_midmin =6.25;
-  limit_maxmin = 3.24;
-  jump_up_limit = 170.0;
-  jump_down_limit = 8.0;
-  cos160 = 160.0;
-  edgea = 2;
-  edgeb = 0.1;
-  smallp_intersect = 172.5;
-  smallp_ratio = 1.2;
-  given_offset_time = false;
+  // 初始化默认参数
+  inf_bound = 10;          // 无限远边界
+  N_SCANS   = 6;           // 扫描线数
+  group_size = 8;          // 组大小
+  disA = 0.01;             // 距离参数A
+  disA = 0.1;              // B? (可能是一个错误或待定)
+  p2l_ratio = 225;         // 平面到线比率
+  limit_maxmid =6.25;      // 最大中值限制
+  limit_midmin =6.25;      // 中值最小限制
+  limit_maxmin = 3.24;     // 最大最小限制
+  jump_up_limit = 170.0;   // 跳跃上限
+  jump_down_limit = 8.0;   // 跳跃下限
+  cos160 = 160.0;          // 160度余弦
+  edgea = 2;               // 边缘参数a
+  edgeb = 0.1;             // 边缘参数b
+  smallp_intersect = 172.5;// 小平面交点
+  smallp_ratio = 1.2;      // 小平面比率
+  given_offset_time = false; // 是否给定偏移时间
 
+  // 转换角度到弧度并计算余弦
   jump_up_limit = cos(jump_up_limit/180*M_PI);
   jump_down_limit = cos(jump_down_limit/180*M_PI);
   cos160 = cos(cos160/180*M_PI);
   smallp_intersect = cos(smallp_intersect/180*M_PI);
+
+  // 从YAML配置文件加载参数
   YAML::Node node;
   try {
     node = YAML::LoadFile(cfg_path + "/RS_META.yaml");
@@ -37,6 +45,7 @@ Preprocess::Preprocess(const std::string cfg_path)
     exit(-1);
   }
 
+  // 读取配置参数
   yamlRead<int>(node, "point_filter_num", point_filter_num, 2);
   yamlRead<bool>(node, "feature_extract_enable", feature_enabled, false);
   auto preprocess_node = node["preprocess"];
@@ -45,9 +54,13 @@ Preprocess::Preprocess(const std::string cfg_path)
   yamlRead<int>(preprocess_node, "lidar_type", lidar_type, AVIA);
   yamlRead<int>(preprocess_node, "scan_line", N_SCANS, 16);
 
+  // 初始化输出点云
   pcl_out.reset(new PointCloudXYZI);
 }
 
+/**
+ * @brief 析构函数：清理资源
+ */
 Preprocess::~Preprocess() {}
 
 //void Preprocess::process(const livox_ros_driver::CustomMsg::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out)
@@ -56,22 +69,30 @@ Preprocess::~Preprocess() {}
 //  *pcl_out = pl_surf;
 //}
 
+/**
+ * @brief 处理Ouster 64线激光雷达数据
+ * @param pl_orig 输入的原始点云数据
+ */
 void Preprocess::oust64_handler(const pcl::PointCloud<ouster_ros::Point> &pl_orig)
 {
+  // 清除输出点云
   pl_surf.clear();
   pl_corn.clear();
   pl_full.clear();
   int plsize = pl_orig.size();
   pl_corn.reserve(plsize);
   pl_surf.reserve(plsize);
+
   if (feature_enabled)
   {
+    // 如果启用特征提取，按扫描线分组点云
     for (int i = 0; i < N_SCANS; i++)
     {
       pl_buff[i].clear();
       pl_buff[i].reserve(plsize);
     }
 
+    // 处理每个点，过滤近距离点
     for (uint i = 0; i < plsize; i++)
     {
       double range = pl_orig.points[i].x * pl_orig.points[i].x + pl_orig.points[i].y * pl_orig.points[i].y + pl_orig.points[i].z * pl_orig.points[i].z;
@@ -98,6 +119,7 @@ void Preprocess::oust64_handler(const pcl::PointCloud<ouster_ros::Point> &pl_ori
       }
     }
 
+    // 对每条扫描线提取特征
     for (int j = 0; j < N_SCANS; j++)
     {
       PointCloudXYZI &pl = pl_buff[j];
@@ -120,6 +142,7 @@ void Preprocess::oust64_handler(const pcl::PointCloud<ouster_ros::Point> &pl_ori
   }
   else
   {
+    // 如果不启用特征提取，直接过滤点云
     // cout << "===================================" << endl;
     // printf("Pt size = %d, N_SCANS = %d\r\n", plsize, N_SCANS);
     for (int i = 0; i < pl_orig.points.size(); i++)
@@ -152,6 +175,12 @@ void Preprocess::oust64_handler(const pcl::PointCloud<ouster_ros::Point> &pl_ori
 const bool time_list(robosense::Point &x, robosense::Point &y) {
   return (x.timestamp < y.timestamp);
 }
+
+/**
+ * @brief 处理Velodyne激光雷达数据
+ * @param pl_orig 输入的原始点云数据
+ * @param ts 时间戳
+ */
 void Preprocess::velodyne_handler(pcl::PointCloud<robosense::Point> &pl_orig, double ts)
 {
     pl_surf.clear();
@@ -403,6 +432,10 @@ void Preprocess::velodyne_handler(pcl::PointCloud<robosense::Point> &pl_orig, do
     *pcl_out = pl_surf;
 }
 
+/**
+ * @brief 处理XT32激光雷达数据
+ * @param pl_orig 输入的原始点云数据
+ */
 void Preprocess::xt32_handler(const pcl::PointCloud<xt32_ros::Point> &pl_orig)
 {
   pl_surf.clear();
@@ -435,6 +468,11 @@ void Preprocess::xt32_handler(const pcl::PointCloud<xt32_ros::Point> &pl_orig)
   *pcl_out = pl_surf;
 }
 
+/**
+ * @brief 从点云中提取特征点（平面和边缘）
+ * @param pl 输入点云
+ * @param types 点类型数组
+ */
 void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &types)
 {
   uint plsize = pl.size();
@@ -747,7 +785,15 @@ void Preprocess::give_feature(pcl::PointCloud<PointType> &pl, vector<orgtype> &t
   *pcl_out = pl_surf;
 }
 
-
+/**
+ * @brief 判断点云中的平面
+ * @param pl 点云
+ * @param types 点类型
+ * @param i_cur 当前索引
+ * @param i_nex 下一个索引
+ * @param curr_direct 当前方向
+ * @return 平面类型
+ */
 int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i_cur, uint &i_nex, Eigen::Vector3d &curr_direct)
 {
   double group_dis = disA*types[i_cur].range + disB;
@@ -862,6 +908,14 @@ int Preprocess::plane_judge(const PointCloudXYZI &pl, vector<orgtype> &types, ui
   return 1;
 }
 
+/**
+ * @brief 判断边缘跳跃
+ * @param pl 点云
+ * @param types 点类型
+ * @param i 索引
+ * @param nor_dir 方向
+ * @return 是否为边缘跳跃
+ */
 bool Preprocess::edge_jump_judge(const PointCloudXYZI &pl, vector<orgtype> &types, uint i, Surround nor_dir)
 {
   if(nor_dir == 0)

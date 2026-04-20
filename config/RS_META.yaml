@@ -8,7 +8,7 @@ topic:
     # compressed_img_topic: /rs_camera/rgb # 临时手动选择 压缩话题是否同名等待商议
 
 # 传感器开关
-img_enable : 1 # 0代表不使用图像 LIO模式
+img_enable : 0 # 0代表不使用图像 LIO模式
 lidar_enable : 1 # 0代表不使用激光雷达 VIO模式
 
 # 传感器优化权重
@@ -109,8 +109,8 @@ rs:
         show_rgb_map: true # 发布rgb地图
 
 pcd_save:
-    pcd_save_en: false
-    ply_save_en: false
+    pcd_save_en: true
+    ply_save_en: true
     save_frame_mode: "" # "single_pcd" "sinlge_ply" "whole_pcd" or "whole_ply"
     voxel_size: 0.03 # >0额外保存降栅格采样点云。(米)
 

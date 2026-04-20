@@ -105,14 +105,14 @@ class FastLivoSlamApp {
   ros::Publisher pubPath_;
   tf::TransformBroadcaster br_;
 #elif defined(USE_ROS2)
-  void ZeroCopyLidarCallback(const ZeroCopyPointCloud2MsgsConstPtr zc_msg);
-  void ZeroCopyImageCallback(const ZeroCopyImageMsgsConstPtr image_ptr);
+  //void ZeroCopyLidarCallback(const ZeroCopyPointCloud2MsgsConstPtr zc_msg);
+  //void ZeroCopyImageCallback(const ZeroCopyImageMsgsConstPtr image_ptr);
   
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr lidar_sub_;
-  rclcpp::Subscription<robosense_msgs::msg::RsPointCloud>::SharedPtr rs_zerocopy_lidar_sub_;
+  //rclcpp::Subscription<robosense_msgs::msg::RsPointCloud>::SharedPtr rs_zerocopy_lidar_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
-  rclcpp::Subscription<robosense_msgs::msg::RsImage>::SharedPtr rs_zerocopy_image_sub_;
+  //rclcpp::Subscription<robosense_msgs::msg::RsImage>::SharedPtr rs_zerocopy_image_sub_;
   rclcpp::Subscription<EmptyMsgs>::SharedPtr restart_signal_sub_;
   image_transport::Publisher img_pub_, noise_img_pub_, raw_img_pub_, rs_all_cloud_img_pub_;
   rclcpp::Publisher<PointCloud2Msgs>::SharedPtr pubLaserCloudFullResRGB_, pubLaserCloudFullRes_,
@@ -153,46 +153,46 @@ class FastLivoSlamApp {
   }
 
 #ifdef USE_ROS2
-  PointCloud2MsgsConstPtr ConvertZCPoints(const ZeroCopyPointCloud2MsgsConstPtr msg) {
-    PointCloud2MsgsConstPtr msg_ptr(new PointCloud2Msgs());
-    // header
-    std_msgs::msg::Header header;
-    std::string frame_id;
-    for(char c : msg->header.frame_id){
-        if(c == '\0') break;
-        frame_id.push_back(c);
-    }
-    header.frame_id = frame_id;
-    header.stamp = rclcpp::Time(msg->header.stamp);
-    msg_ptr->header = header;
-    // other
-    msg_ptr->is_bigendian = msg->is_bigendian;
-    msg_ptr->point_step = msg->point_step;
-    msg_ptr->row_step = msg->row_step;
-    msg_ptr->height = msg->height;
-    msg_ptr->width = msg->width;
-    msg_ptr->is_dense = msg->is_dense;
-    // fields
-    msg_ptr->fields.resize(msg->fields.size());
-    for (const auto& field : msg->fields) {
-      sensor_msgs::msg::PointField point_field;
-      std::string name;
-      for (char c : field.name) {
-        if (c == '\0') break;
-        name.push_back(c);
-      }
-      point_field.name = name;
-      point_field.offset = field.offset;
-      point_field.datatype = field.datatype;
-      point_field.count = field.count;
-      msg_ptr->fields.push_back(point_field);
-    }
-    // data
-    msg_ptr->data.resize(msg->row_step);
-    // copy data
-    memcpy(msg_ptr->data.data(), msg->data.data(), msg->row_step);
-    return msg_ptr;
-  }
+//   PointCloud2MsgsConstPtr ConvertZCPoints(const ZeroCopyPointCloud2MsgsConstPtr msg) {
+//     PointCloud2MsgsConstPtr msg_ptr(new PointCloud2Msgs());
+//     // header
+//     std_msgs::msg::Header header;
+//     std::string frame_id;
+//     for(char c : msg->header.frame_id){
+//         if(c == '\0') break;
+//         frame_id.push_back(c);
+//     }
+//     header.frame_id = frame_id;
+//     header.stamp = rclcpp::Time(msg->header.stamp);
+//     msg_ptr->header = header;
+//     // other
+//     msg_ptr->is_bigendian = msg->is_bigendian;
+//     msg_ptr->point_step = msg->point_step;
+//     msg_ptr->row_step = msg->row_step;
+//     msg_ptr->height = msg->height;
+//     msg_ptr->width = msg->width;
+//     msg_ptr->is_dense = msg->is_dense;
+//     // fields
+//     msg_ptr->fields.resize(msg->fields.size());
+//     for (const auto& field : msg->fields) {
+//       sensor_msgs::msg::PointField point_field;
+//       std::string name;
+//       for (char c : field.name) {
+//         if (c == '\0') break;
+//         name.push_back(c);
+//       }
+//       point_field.name = name;
+//       point_field.offset = field.offset;
+//       point_field.datatype = field.datatype;
+//       point_field.count = field.count;
+//       msg_ptr->fields.push_back(point_field);
+//     }
+//     // data
+//     msg_ptr->data.resize(msg->row_step);
+//     // copy data
+//     memcpy(msg_ptr->data.data(), msg->data.data(), msg->row_step);
+//     return msg_ptr;
+//   }
 #endif
 };
 

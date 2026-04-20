@@ -144,7 +144,7 @@ cv::Mat FastLivoSlam::getImageFromMsg(const cv::Mat img_msg) {
 
 void FastLivoSlam::ProcessMsgBufferLoop() {
   while (run_flag_) {
-
+  //LINFO << "FastLivoSlam ProcessMsgBufferLoop start. " << REND;
     // 队列空则等待原始消息触发
     if (ts_msg_buffer.empty()) {
       std::unique_lock<std::mutex> lk(mtx_raw_msg_buffer);
@@ -483,13 +483,13 @@ bool FastLivoSlam::CombineSensorMsgs(LidarMeasureGroup &meas) {
 
   // 有img topic，需要处理lidar或img topic
   struct MeasureGroup m;
-  cout << "[ CombineSensorMsgs ] buffer size, lidar: " << lidar_buffer.size()
-       << " img: " << img_buffer.size() << " imu: " << imu_buffer.size()
-       << endl;
+  // cout << "[ CombineSensorMsgs ] buffer size, lidar: " << lidar_buffer.size()
+  //      << " img: " << img_buffer.size() << " imu: " << imu_buffer.size()
+  //      << endl;
   double lidar_t_minus_img_t = lidar_end_time - img_time_buffer.front();
-  cout << "[ CombineSensorMsgs ] first img: " << img_time_buffer.front()
-       << " lidar: " << lidar_end_time << " imu: " << last_timestamp_imu
-       << " lidar-img(s): " << lidar_t_minus_img_t << endl;
+  // cout << "[ CombineSensorMsgs ] first img: " << img_time_buffer.front()
+  //      << " lidar: " << lidar_end_time << " imu: " << last_timestamp_imu
+  //      << " lidar-img(s): " << lidar_t_minus_img_t << endl;
   // lidar在前，仅处理lidar
   if ((img_time_buffer.front() > lidar_end_time)) {
     LTITLE << "[ CombineSensorMsgs ] ===only process lidar, lidar-img(s): "

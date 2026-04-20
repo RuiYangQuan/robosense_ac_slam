@@ -113,15 +113,15 @@ inline void SetQuaternionMsgs(double roll, double pitch, double yaw,
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_ros/transform_broadcaster.h>
 // for zero_copy
-#include <robosense_msgs/msg/rs_image.hpp>
-#include <robosense_msgs/msg/rs_point_cloud.hpp>
+//#include <robosense_msgs/msg/rs_image.hpp>
+//#include <robosense_msgs/msg/rs_point_cloud.hpp>
 
 using ImuMsgsConstPtr = sensor_msgs::msg::Imu::SharedPtr;
 using ImuMsgs = sensor_msgs::msg::Imu;
 using PointCloud2MsgsConstPtr = sensor_msgs::msg::PointCloud2::SharedPtr;
 using ImageMsgsConstPtr = sensor_msgs::msg::Image::SharedPtr;
-using ZeroCopyImageMsgsConstPtr = robosense_msgs::msg::RsImage::SharedPtr;
-using ZeroCopyPointCloud2MsgsConstPtr = robosense_msgs::msg::RsPointCloud::SharedPtr;
+//using ZeroCopyImageMsgsConstPtr = robosense_msgs::msg::RsImage::SharedPtr;
+//using ZeroCopyPointCloud2MsgsConstPtr = robosense_msgs::msg::RsPointCloud::SharedPtr;
 using PointCloud2Msgs = sensor_msgs::msg::PointCloud2;
 using EmptyMsgs = std_msgs::msg::Empty;
 using EmptyMsgsConstPtr = std_msgs::msg::Empty::ConstSharedPtr;

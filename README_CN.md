@@ -135,6 +135,13 @@ source install/setup.bash
 ros2 run slam slam_node
 ```
 
+后端运行
+ros2 run slam back_node
+播放数据集
+ros2 bag play /opt/app/dataset/AC1_2026/slam/new_data/ac1_scene_20260318_135416
+web端话题监听
+ros2 run foxglove_bridge foxglove_bridge --ros-args -p port:=8777
+
 ## 5. 致谢
 
 感谢 [FAST-LIVO](https://github.com/hku-mars/FAST-LIVO)、 [FAST-LIVO2](https://github.com/hku-mars/FAST-LIVO2) 和 [VINS-Mono](https://github.com/HKUST-Aerial-Robotics/VINS-Mono)

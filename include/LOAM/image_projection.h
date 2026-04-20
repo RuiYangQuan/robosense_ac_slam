@@ -297,10 +297,10 @@ class ImageProjection {
 
       lidarCloudDense->points[index] = lidarCloud->points[i]; // 将点云非dense化
     }
-    LDEBUG << "[ Image projection ] size: " << cloudSize << ", yaw range: " << min_yaw << " to " << max_yaw
-           << ", pitch range: " << min_pitch << " to " << max_pitch
-           << ", col range: " << min_col << " to " << max_col
-           << ", row range: " << min_row << " to " << max_row << REND;
+    // LDEBUG << "[ Image projection ] size: " << cloudSize << ", yaw range: " << min_yaw << " to " << max_yaw
+    //        << ", pitch range: " << min_pitch << " to " << max_pitch
+    //        << ", col range: " << min_col << " to " << max_col
+    //        << ", row range: " << min_row << " to " << max_row << REND;
     // // 将深度图归一化到0-255的范围
     // cv::Mat normalizedDepth;
     // cv::normalize(rangeMat, normalizedDepth, 0, 255, cv::NORM_MINMAX, CV_8U);
@@ -504,9 +504,9 @@ class ImageProjection {
 
   // 输出
   void setSegmentationResult() {
-    LDEBUG << "[ Image projection] valid raw ratio=" << laserScanCloud->size()
-           << "/" << lidarCloud->size() << "="
-           << laserScanCloud->size() / double(lidarCloud->size()) << "";
+    // LDEBUG << "[ Image projection] valid raw ratio=" << laserScanCloud->size()
+    //        << "/" << lidarCloud->size() << "="
+    //        << laserScanCloud->size() / double(lidarCloud->size()) << "";
 
     // 调试
     int valid_pt_num = groundScanInd * Horizon_SCAN;

@@ -20,24 +20,61 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
+ /**
+ * @file fast_livo_slam_app_ros_node.cpp
+ * @brief Fast-LIVO SLAM ROS2 节点实现
+ * 
+ * 该文件实现了 FastLivoSlamApp 类，该类是 Fast-LIVO SLAM 系统的 ROS2 节点封装。
+ * 它负责：
+ * - 初始化点云预处理模块和 SLAM 核心模块
+ * - 订阅激光雷达、IMU 和相机数据
+ * - 发布 SLAM 结果（位姿、点云地图、路径等）
+ * - 处理重启信号
+ * 
+ * 支持多种激光雷达类型（Ouster、Velodyne、XT32 等）和 ROS1/ROS2 兼容。
+ */
+
 #include "fast_livo_slam_app_ros_node.h"
 
+/**
+ * @namespace robosense
+ * @brief RoboSense 命名空间
+ */
+
+/**
+ * @namespace slam
+ * @brief SLAM 相关功能命名空间
+ */
 namespace robosense {
 namespace slam {
 
+/**
+ * @brief FastLivoSlamApp 构造函数
+ * @param cfg_path 配置文件路径，包含 RS_META.yaml 等配置文件
+ * 
+ * 构造函数执行以下初始化步骤：
+ * 1. 保存配置文件路径
+ * 2. 创建并初始化点云预处理模块 (Preprocess)
+ * 3. 创建并初始化 Fast-LIVO SLAM 核心模块
+ * 4. 从配置文件读取传感器话题名称
+ * 5. 根据编译宏 (USE_ROS1 或 USE_ROS2) 创建相应的 ROS 订阅者和发布者
+ * 6. 设置各种回调函数用于处理 SLAM 结果和发布数据
+ */
 FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
 
-  /**************** 核心代码  ****************/
-  // 保存配置路径
+  /**************** 核心模块初始化  ****************/
+  // 保存配置路径，用于后续重启等操作
   cfg_path_ = cfg_path;
   
-  // 点云预处理模块
+  // 初始化点云预处理模块，负责滤波、特征提取等
   p_pre_.reset(new Preprocess(cfg_path));
-  // slam模块
+  
+  // 初始化 Fast-LIVO SLAM 核心模块
   slam_ptr_.reset(new slam::FastLivoSlam());
   slam_ptr_->Init(cfg_path);
 
-  // subscriber, impl by ROS
+  /**************** ROS 通信设置  ****************/
+  // 从配置文件读取传感器数据话题名称
   std::string config_file = cfg_path + "/RS_META.yaml";
   auto cfg_node = YAML::LoadFile(config_file);
   std::string lid_topic, imu_topic, img_topic, compressed_img_topic;
@@ -48,6 +85,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
   LINFO << "topic: lidar: " << lid_topic << " imu: " << imu_topic << " camera: " << img_topic << " compressed_img_topic: " << compressed_img_topic << REND;
 
 #ifdef USE_ROS1
+  // ROS1 订阅者
   lidar_sub_ = nh_.subscribe(lid_topic, 100, &FastLivoSlamApp::LidarCallback, this);
   imu_sub_ = nh_.subscribe(imu_topic, 1000, &FastLivoSlamApp::ImuCallback, this);
   image_sub_ = nh_.subscribe(img_topic, 100, &FastLivoSlamApp::ImageCallback, this);
@@ -55,14 +93,15 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
   // 添加重启信号订阅器
   restart_signal_sub_ = nh_.subscribe("/fast_livo/restart_signal", 10, &FastLivoSlamApp::RestartSignalCallback, this);
 #elif defined(USE_ROS2)
+  // ROS2 节点和订阅者
   ros2_node =  rclcpp::Node::make_shared("fast_livo_slam_app");
   br_ptr_ = std::make_shared<tf2_ros::TransformBroadcaster>(ros2_node);
   imu_sub_ = ros2_node->create_subscription<sensor_msgs::msg::Imu>(imu_topic, 5000, std::bind(&FastLivoSlamApp::ImuCallback, this, std::placeholders::_1));
   const char* val = std::getenv("RMW_FASTRTPS_USE_QOS_FROM_XML");
   if (val != nullptr && std::string(val) == "1") {
     LWARNING << "is zero copy mode" << REND;
-    rs_zerocopy_lidar_sub_ = ros2_node->create_subscription<robosense_msgs::msg::RsPointCloud>(lid_topic, 100, std::bind(&FastLivoSlamApp::ZeroCopyLidarCallback, this, std::placeholders::_1));
-    rs_zerocopy_image_sub_ = ros2_node->create_subscription<robosense_msgs::msg::RsImage>(img_topic, 300, std::bind(&FastLivoSlamApp::ZeroCopyImageCallback, this, std::placeholders::_1));
+    //rs_zerocopy_lidar_sub_ = ros2_node->create_subscription<robosense_msgs::msg::RsPointCloud>(lid_topic, 100, std::bind(&FastLivoSlamApp::ZeroCopyLidarCallback, this, std::placeholders::_1));
+    //rs_zerocopy_image_sub_ = ros2_node->create_subscription<robosense_msgs::msg::RsImage>(img_topic, 300, std::bind(&FastLivoSlamApp::ZeroCopyImageCallback, this, std::placeholders::_1));
   } else {
     lidar_sub_ = ros2_node->create_subscription<sensor_msgs::msg::PointCloud2>(lid_topic, 100, std::bind(&FastLivoSlamApp::LidarCallback, this, std::placeholders::_1));
     image_sub_ = ros2_node->create_subscription<sensor_msgs::msg::Image>(img_topic, 300, std::bind(&FastLivoSlamApp::ImageCallback, this, std::placeholders::_1));
@@ -70,9 +109,18 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
   restart_signal_sub_ = ros2_node->create_subscription<EmptyMsgs>("/fast_livo/restart_signal", 10, std::bind(&FastLivoSlamApp::RestartSignalCallback, this, std::placeholders::_1));
 #endif
 
-  // full LIVO result callback
+  /**************** SLAM 结果处理回调  ****************/
+  /**
+   * @brief Fast-LIVO SLAM 结果回调函数
+   * 
+   * 该回调函数处理 SLAM 核心模块输出的结果，根据传感器类型发布相应的数据：
+   * - LIDAR: 发布点云、位姿、TF 等
+   * - CAMERA: 发布视觉 SLAM 结果
+   * - IMU: 处理 IMU 初始化状态
+   */
   full_result_func_ = [this](const LIVOResult& livo_res) {
 
+    // 检查 IMU 初始化状态
     // static bool imu_init_done{false};
     if(! imu_init_done_) {
       imu_init_done_ = livo_res.imu_process_result->init_process >= 100;
@@ -80,23 +128,29 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
             << REND;
     }
 
+    // 根据传感器类型处理不同的 SLAM 结果
     LTITLE << "LIVO result updated. sensor type: " << int(livo_res.source) << REND;
     if (livo_res.source == SensorType::LIDAR) {
+      // 处理激光雷达 SLAM 结果
       LINFO << "LIO ts: " << livo_res.update_ts << REND;
       Pose pose = livo_res.lio_result->lidar_pose;
 
-      CloudPtr scan = livo_res.lio_result->scan;
-      CloudPtr map = livo_res.lio_result->map;
-      CloudPtr kdtree_map = livo_res.lio_result->kdtree_map;
-      RGBCloudPtr rgb_scan = livo_res.lio_result->rgb_scan;
-      RGBCloudPtr rgb_map = livo_res.lio_result->rgb_map;
+      // 获取各种点云数据
+      CloudPtr scan = livo_res.lio_result->scan;           // 当前扫描点云
+      CloudPtr map = livo_res.lio_result->map;             // 局部地图点云
+      CloudPtr kdtree_map = livo_res.lio_result->kdtree_map; // KDTree 地图
+      RGBCloudPtr rgb_scan = livo_res.lio_result->rgb_scan; // 彩色扫描点云
+      RGBCloudPtr rgb_map = livo_res.lio_result->rgb_map;   // 彩色地图点云
+      
+      // 记录点云大小信息
       LINFO << "size scan: " << scan->size() << " map: " << map->size()
             << " kdtree: " << kdtree_map->size()
             << " rgb scan: " << rgb_scan->size()
             << " rgb map: " << rgb_map->size() << REND;
 
-      cv::Mat img_raw = livo_res.vio_result->img_raw;
-      cv::Mat img_all_cloud = livo_res.vio_result->img_all_cloud;
+      // 获取视觉 SLAM 结果的图像数据
+      cv::Mat img_raw = livo_res.vio_result->img_raw;           // 原始图像
+      cv::Mat img_all_cloud = livo_res.vio_result->img_all_cloud; // 点云投影图像
 
       // publisher, impl by ROS. TODO: your own version
       {
@@ -132,7 +186,17 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
   };
   this->slam_ptr_->RegisterGetLIVOResult(full_result_func_);
 
-  /**************** 以下单独发布话题 仅用于调试 ****************/
+  /**************** 调试用发布者设置  ****************/
+  /**
+   * @brief 设置各种调试用的话题发布者
+   * 
+   * 这些发布者主要用于调试和可视化，包括：
+   * - 图像发布者：RGB 图像、噪声图像、原始图像等
+   * - 点云发布者：注册点云、视觉子地图、效果点云、地图等
+   * - 位姿和路径发布者：里程计、路径等
+   * 
+   * 支持 ROS1 和 ROS2 两种版本
+   */
 #ifdef USE_ROS1
   // image publisher
   image_transport::ImageTransport it(nh_);
@@ -404,6 +468,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
   pubPath_ = ros2_node->create_publisher<nav_msgs::msg::Path>("/path", 10);
   path_func_ = [this](const Pose &msg_ptr) {
     geometry_msgs::msg::PoseStamped msg_body_pose;
+    msg_body_pose.header.frame_id = "camera_init";
     msg_body_pose.pose.position.x = msg_ptr.xyz.x();
     msg_body_pose.pose.position.y = msg_ptr.xyz.y();
     msg_body_pose.pose.position.z = msg_ptr.xyz.z();
@@ -491,7 +556,11 @@ void FastLivoSlamApp::CloudRosToCommon(const PointCloud2MsgsConstPtr &msg,
 
 std::ofstream f_sensor_buf(std::string(PROJECT_PATH) + "/Log/raw_sensor.txt", ios::out);
 std::mutex mtx_cb;
-// callback
+
+/**
+ * @brief 激光雷达数据回调函数
+ * @param msg 点云消息
+ */
 void FastLivoSlamApp::LidarCallback(const PointCloud2MsgsConstPtr msg) {
   // static double last_sys_t = 0;
   // static double last_header_t = 0;
@@ -553,41 +622,45 @@ void FastLivoSlamApp::ImageCallback(const ImageMsgsConstPtr image_ptr) {
 }
 
 #ifdef USE_ROS2
-void FastLivoSlamApp::ZeroCopyLidarCallback(const ZeroCopyPointCloud2MsgsConstPtr zc_msg) {
-  try {
-    PointCloud2MsgsConstPtr msg = ConvertZCPoints(zc_msg);
-    double header_ts = static_cast<double>(zc_msg->header.stamp.sec) + static_cast<double>(zc_msg->header.stamp.nanosec) / 1e9;
+// void FastLivoSlamApp::ZeroCopyLidarCallback(const ZeroCopyPointCloud2MsgsConstPtr zc_msg) {
+//   try {
+//     PointCloud2MsgsConstPtr msg = ConvertZCPoints(zc_msg);
+//     double header_ts = static_cast<double>(zc_msg->header.stamp.sec) + static_cast<double>(zc_msg->header.stamp.nanosec) / 1e9;
 
-    CloudPtr ptr(new PointCloudXYZI());
-    double cloud_abs_ts;
+//     CloudPtr ptr(new PointCloudXYZI());
+//     double cloud_abs_ts;
 
-    double b_t = omp_get_wtime();
-    CloudRosToCommon(msg, ptr, cloud_abs_ts);
-    double e_t = omp_get_wtime();
-    printf("[ INPUT ] preprocess cloud done, header_ts: %.6f cloud_ts: %.6f "
-          "size: %d cost(ms): %f.\n",
-          header_ts, cloud_abs_ts, int(ptr->points.size()), (e_t - b_t) * 1000);
+//     double b_t = omp_get_wtime();
+//     CloudRosToCommon(msg, ptr, cloud_abs_ts);
+//     double e_t = omp_get_wtime();
+//     printf("[ INPUT ] preprocess cloud done, header_ts: %.6f cloud_ts: %.6f "
+//           "size: %d cost(ms): %f.\n",
+//           header_ts, cloud_abs_ts, int(ptr->points.size()), (e_t - b_t) * 1000);
 
-    slam_ptr_->AddData(ptr, cloud_abs_ts);
-  } catch (std::exception &e) {
-    std::cout << e.what();
-  }
-}
+//     slam_ptr_->AddData(ptr, cloud_abs_ts);
+//   } catch (std::exception &e) {
+//     std::cout << e.what();
+//   }
+// }
 
-void FastLivoSlamApp::ZeroCopyImageCallback(const ZeroCopyImageMsgsConstPtr image_ptr) {
-  try {
-    double header_ts = static_cast<double>(image_ptr->header.stamp.sec) + static_cast<double>(image_ptr->header.stamp.nanosec) / 1e9;
-    std::shared_ptr<cv::Mat> cv_img_ptr(new cv::Mat);
-    cv::Mat image(cv::Size(image_ptr->width, image_ptr->height), CV_8UC3, reinterpret_cast<void*>(const_cast<unsigned char*>(image_ptr->data.data())));
-    *cv_img_ptr = image.clone();
-    cvtColor(*cv_img_ptr, *cv_img_ptr, cv::COLOR_RGB2BGR);
-    slam_ptr_->AddData(cv_img_ptr, header_ts);
-  } catch (std::exception &e) {
-    std::cout << e.what();
-  }
-}
+// void FastLivoSlamApp::ZeroCopyImageCallback(const ZeroCopyImageMsgsConstPtr image_ptr) {
+//   try {
+//     double header_ts = static_cast<double>(image_ptr->header.stamp.sec) + static_cast<double>(image_ptr->header.stamp.nanosec) / 1e9;
+//     std::shared_ptr<cv::Mat> cv_img_ptr(new cv::Mat);
+//     cv::Mat image(cv::Size(image_ptr->width, image_ptr->height), CV_8UC3, reinterpret_cast<void*>(const_cast<unsigned char*>(image_ptr->data.data())));
+//     *cv_img_ptr = image.clone();
+//     cvtColor(*cv_img_ptr, *cv_img_ptr, cv::COLOR_RGB2BGR);
+//     slam_ptr_->AddData(cv_img_ptr, header_ts);
+//   } catch (std::exception &e) {
+//     std::cout << e.what();
+//   }
+// }
 #endif
 
+/**
+ * @brief 重启信号回调函数
+ * @param msg 空消息
+ */
 void FastLivoSlamApp::RestartSignalCallback(const EmptyMsgsConstPtr &msg) {
  LINFO << "Received restart signal!" << REND;
  Restart(cfg_path_);
