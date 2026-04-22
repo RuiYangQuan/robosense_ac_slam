@@ -259,7 +259,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
     laserCloudmsg.header.frame_id = "camera_init";
     this->pubLaserCloudFullRes_.publish(laserCloudmsg);
   };
-  slam_ptr_->SetLaserCloudFullResCallback(cloud_register_func_);
+  slam_ptr_->SetLaserCloudFullResCallback(cloud_register_func_);//原始点云
 
   pubSubVisualCloud_ = nh_.advertise<sensor_msgs::PointCloud2>("/cloud_visual_sub_map", 100);
   visual_sub_map_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr) {
@@ -269,7 +269,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
     laserCloudmsg.header.frame_id = "camera_init";
     this->pubSubVisualCloud_.publish(laserCloudmsg);
   };
-  slam_ptr_->SetSubVisualCloudCallback(visual_sub_map_func_);
+  slam_ptr_->SetSubVisualCloudCallback(visual_sub_map_func_);//rgb点云地图
 
   pubLaserCloudEffect_ = nh_.advertise<sensor_msgs::PointCloud2>("/cloud_effected", 100);
   cloud_effected_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr) {
@@ -279,7 +279,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
     laserCloudmsg.header.frame_id = "camera_init";
     this->pubLaserCloudEffect_.publish(laserCloudmsg);
   };
-  slam_ptr_->SetLaserCloudEffectCallback(cloud_effected_func_);
+  slam_ptr_->SetLaserCloudEffectCallback(cloud_effected_func_);//降采样后的点云
 
   pubLaserCloudMap_ = nh_.advertise<sensor_msgs::PointCloud2>("/Laser_map", 100);
   laser_map_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr) {
@@ -321,7 +321,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
                                           "camera_init", "aft_mapped"));
     this->pubOdomAftMapped_.publish(odomAftMapped);
   };
-  slam_ptr_->SetOdomAftMappedCallback(odom_aft_mapped_func_);
+  slam_ptr_->SetOdomAftMappedCallback(odom_aft_mapped_func_);//LIO位姿
 
   // path publisher
   pubPath_ = nh_.advertise<nav_msgs::Path>("/path", 10);
@@ -339,7 +339,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
     path_.header.frame_id = "camera_init";
     this->pubPath_.publish(path_);
   };
-  slam_ptr_->SetPathCallback(path_func_);
+  slam_ptr_->SetPathCallback(path_func_);//LIO位姿路径
 #elif defined(USE_ROS2)
 // image publisher
   img_pub_ = image_transport::create_publisher(ros2_node.get(), "/rgb_img");

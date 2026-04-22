@@ -132,12 +132,14 @@ elseif(ROS_VERSION STREQUAL "ROS2")
 	find_package(ament_cmake REQUIRED)
 	find_package(rclcpp REQUIRED)
 	find_package(cv_bridge REQUIRED)
+	find_package(visualization_msgs REQUIRED)
 	find_package(sensor_msgs REQUIRED)
 	find_package(robosense_msgs REQUIRED)
 	find_package(nav_msgs REQUIRED)
 	find_package(image_transport REQUIRED)
 	find_package(pcl_conversions REQUIRED)
 	find_package(tf2_ros REQUIRED) # 添加 tf2_ros 依赖
+	find_package(std_srvs REQUIRED)
 	# 寻找 PCL
 	#find_package(PCL REQUIRED)
 	# 显式请求 common 和 registration 等核心组件，防止遗漏
@@ -327,6 +329,8 @@ ament_target_dependencies(
 	sensor_msgs
 	nav_msgs
 	pcl_conversions
+	visualization_msgs
+	std_srvs
 )
 
 # 1. 链接所需的库 (引入 ScanContext, GTSAM 和 PCL)
