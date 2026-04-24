@@ -247,6 +247,15 @@ class ImageProjection {
     int min_row = 10000;
     cloudSize = lidarCloud->points.size();
     int cnt = 0;
+
+    // for debug
+    // printf("vertical: N_SCAN: %d\n", N_SCAN);
+    // printf("Horizon_SCAN: %d\n", Horizon_SCAN);
+    // printf("ang_res_x: %f\n", ang_res_x);
+    // printf("ang_res_y: %f\n", ang_res_y);
+    // printf("ang_bottom: %f\n", ang_bottom);
+    // printf("cloudSize: %d\n", cloudSize);
+
     for (size_t i = 0; i < cloudSize; ++i) {
       thisPoint.x = lidarCloud->points[i].x;
       thisPoint.y = lidarCloud->points[i].y;
@@ -261,20 +270,40 @@ class ImageProjection {
       if (rowIdn < 0 || rowIdn >= N_SCAN) {
         continue;
       }
-      max_col = rowIdn > max_row ? rowIdn : max_row;
-      min_col = rowIdn < min_row ? rowIdn : min_row;
+
+      max_row = int(rowIdn) > max_row ? int(rowIdn) : max_row;
+      min_row = int(rowIdn) < min_row ? int(rowIdn) : min_row;
 
       // columnIdn
-      horizonAngle = atan2(thisPoint.x, thisPoint.y) * R2D;
+      // horizonAngle = atan2(thisPoint.x, thisPoint.y) * R2D;
+      // min_yaw = horizonAngle < min_yaw ? horizonAngle : min_yaw;
+      // max_yaw = horizonAngle > max_yaw ? horizonAngle : max_yaw;
+      // columnIdn = -round((horizonAngle - 90.0) / ang_res_x) + Horizon_SCAN / 2;
+      // if (columnIdn < column_drop_num ||
+      //     columnIdn >= Horizon_SCAN - column_drop_num) {
+      //   continue;
+      // }
+
+      // columnIdn
+      // yht 20260423 for airy (0-360度）
+      // method1
+      horizonAngle = atan2(thisPoint.y, thisPoint.x) * R2D;  
+      if (horizonAngle < 0) horizonAngle += 360.0;
       min_yaw = horizonAngle < min_yaw ? horizonAngle : min_yaw;
       max_yaw = horizonAngle > max_yaw ? horizonAngle : max_yaw;
-      columnIdn = -round((horizonAngle - 90.0) / ang_res_x) + Horizon_SCAN / 2;
-      if (columnIdn < column_drop_num ||
-          columnIdn >= Horizon_SCAN - column_drop_num) {
-        continue;
-      }
-      max_row = columnIdn > max_row ? columnIdn : max_row;
-      min_row = columnIdn < min_row ? columnIdn : min_row;
+      columnIdn = round(horizonAngle / ang_res_x);
+      if (columnIdn >= Horizon_SCAN) columnIdn -= Horizon_SCAN;  // 环绕处理
+      // method2 
+      // 保持连续性
+      // horizonAngle = atan2(thisPoint.y, thisPoint.x) * R2D;  // -180 到 180
+      // columnIdn = round((horizonAngle + 180.0) / ang_res_x);
+      // if (columnIdn >= Horizon_SCAN) columnIdn = 0;  // 环绕
+      // if (columnIdn < 0) columnIdn = Horizon_SCAN - 1;
+
+
+
+      max_col = int(columnIdn) > max_col ? int(columnIdn) : max_col;
+      min_col = int(columnIdn) < min_col ? int(columnIdn) : min_col;
 
       // range
       range = sqrt(x2_y2 + thisPoint.z * thisPoint.z);
@@ -297,10 +326,10 @@ class ImageProjection {
 
       lidarCloudDense->points[index] = lidarCloud->points[i]; // 将点云非dense化
     }
-    // LDEBUG << "[ Image projection ] size: " << cloudSize << ", yaw range: " << min_yaw << " to " << max_yaw
-    //        << ", pitch range: " << min_pitch << " to " << max_pitch
-    //        << ", col range: " << min_col << " to " << max_col
-    //        << ", row range: " << min_row << " to " << max_row << REND;
+    LDEBUG << "[ Image projection ] size: " << cloudSize << ", yaw range: " << min_yaw << " to " << max_yaw
+           << ", pitch range: " << min_pitch << " to " << max_pitch
+           << ", col range: " << min_col << " to " << max_col
+           << ", row range: " << min_row << " to " << max_row << REND;
     // // 将深度图归一化到0-255的范围
     // cv::Mat normalizedDepth;
     // cv::normalize(rangeMat, normalizedDepth, 0, 255, cv::NORM_MINMAX, CV_8U);
@@ -504,9 +533,9 @@ class ImageProjection {
 
   // 输出
   void setSegmentationResult() {
-    // LDEBUG << "[ Image projection] valid raw ratio=" << laserScanCloud->size()
-    //        << "/" << lidarCloud->size() << "="
-    //        << laserScanCloud->size() / double(lidarCloud->size()) << "";
+    LDEBUG << "[ Image projection] valid raw ratio=" << laserScanCloud->size()
+           << "/" << lidarCloud->size() << "="
+           << laserScanCloud->size() / double(lidarCloud->size()) << "";
 
     // 调试
     int valid_pt_num = groundScanInd * Horizon_SCAN;

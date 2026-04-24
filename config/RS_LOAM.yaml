@@ -10,12 +10,19 @@ lidar_odometry:
     # ang_res_x: 0.625
     # ang_res_y: 0.625
 ###AC1_2.0 yaw: 25~155 pit: -30~30
-    N_SCAN: 96 # 60/0.625
-    Horizon_SCAN: 240 # 130/0.625
-    ang_bottom: 30
+    # N_SCAN: 96 # 60/0.625
+    # Horizon_SCAN: 240 # 130/0.625
+    # ang_bottom: 30
+    # groundScanInd: 50
+    # ang_res_x: 0.625
+    # ang_res_y: 0.625
+    #Airy
+    N_SCAN: 96 # 90/0.625
+    Horizon_SCAN: 900 # 360/0.94
+    ang_bottom: 0    # AC1 30
     groundScanInd: 50
-    ang_res_x: 0.625
-    ang_res_y: 0.625
+    ang_res_x: 0.4
+    ang_res_y: 0.94
 ###m1p
     # N_SCAN: 125 # 25/0.2
     # Horizon_SCAN: 600 # 120/0.2

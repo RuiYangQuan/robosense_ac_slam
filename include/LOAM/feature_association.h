@@ -409,13 +409,13 @@ class FeatureAssociation {
       }
     }
 
-    LDEBUG << "[ Pick boundary] b_num(-10): " << b_num
-          << " b_neightbor_num(-11): " << b_neightbor_num
-          << " a_num(-9): " << a_num
-          << " invalid_neighbor_num(-20): " << invalid_neighbor_num
-          << " pseudo_noise: "
-          << b_num + b_neightbor_num + a_num + invalid_neighbor_num << "/"
-          << cloudSize << REND;
+    // LDEBUG << "[ Pick boundary] b_num(-10): " << b_num
+    //       << " b_neightbor_num(-11): " << b_neightbor_num
+    //       << " a_num(-9): " << a_num
+    //       << " invalid_neighbor_num(-20): " << invalid_neighbor_num
+    //       << " pseudo_noise: "
+    //       << b_num + b_neightbor_num + a_num + invalid_neighbor_num << "/"
+    //       << cloudSize << REND;
 
     if (nf_p.recall_map_plane_thresh > 0) {
       LDEBUG << "===Recall plane. pseudo_noise: " << pseudo_noise_num

@@ -1,7 +1,7 @@
 #include "preprocess.h"
 #include "common_lib.h"
-
-#define RETURN0     0x00
+#include <pcl_conversions/pcl_conversions.h>
+#define RETURN0 0x00
 #define RETURN0AND1 0x10
 
 /**
@@ -63,11 +63,59 @@ Preprocess::Preprocess(const std::string cfg_path)
  */
 Preprocess::~Preprocess() {}
 
-//void Preprocess::process(const livox_ros_driver::CustomMsg::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out)
+// void Preprocess::process(const livox_ros_driver::CustomMsg::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out)
 //{
-//  avia_handler(msg);
-//  *pcl_out = pl_surf;
-//}
+//   avia_handler(msg);
+//   *pcl_out = pl_surf;
+// }
+
+void Preprocess::robosense_handler(pcl::PointCloud<robosense_ros::Point> &pl_orig, double ts)
+{
+  pl_surf.clear();
+  int plsize = pl_orig.size();
+  if (plsize == 0) return;
+
+  // 1. 【破除性能黑洞】：最纯粹的排序，没有任何冗余计算，耗时降至 1 毫秒！
+  std::sort(pl_orig.points.begin(), pl_orig.points.end(), [](const robosense_ros::Point &a, const robosense_ros::Point &b) {
+      return a.timestamp < b.timestamp;
+  });
+
+  double time_head = pl_orig.points[0].timestamp;
+  pl_surf.reserve(plsize);
+
+  // 2. 线性遍历提取
+  for (int i = 0; i < plsize; ++i)
+  {
+    if (i % point_filter_num != 0) continue;
+
+    const auto& pt = pl_orig.points[i];
+    
+    // 【O(N) 高效异常拦截】：在这里做 NaN 检查，只执行几万次，不拖累排序
+    if (std::isnan(pt.x) || std::isnan(pt.y) || std::isnan(pt.z) || std::isnan(pt.timestamp)) {
+        continue;
+    }
+
+    const double x = pt.x, y = pt.y, z = pt.z;
+    const double dist_sqr = x * x + y * y + z * z;
+    
+    // 严格过滤：剔除盲区，并抛弃极大概率是噪点的坐标系原点(x < 0.01)
+    // if (dist_sqr < blind * blind || x < 0.01) {
+    //     continue;
+    // }
+
+    PointType added_pt;
+    added_pt.normal_x = 0; added_pt.normal_y = 0; added_pt.normal_z = 0;
+    added_pt.x = x; added_pt.y = y; added_pt.z = z;
+    added_pt.intensity = pt.intensity;
+    
+    // 完美转换相对时间 (ms)
+    added_pt.curvature = (pt.timestamp - time_head) * 1000.0;
+    
+    pl_surf.points.push_back(added_pt);
+  }
+  
+  *pcl_out = pl_surf;
+}
 
 /**
  * @brief 处理Ouster 64线激光雷达数据

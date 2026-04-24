@@ -1,3 +1,10 @@
+/**
+ * @file    back_node.cpp
+ * @brief   基于scancontext和gtsam实现的SLAM后端功能
+ * @author  qry
+ * @date    2026-04-15
+ * @version 1.0
+ */
 #include <rclcpp/rclcpp.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -112,14 +119,25 @@ private:
       double translation_diff = (current_pose.translation() - last_keyframe_pose_.translation()).norm();
       double rotation_diff = current_pose.rotation().localCoordinates(last_keyframe_pose_.rotation()).norm();
       // 关键帧
-      double translation_threshold = 0.2;
+      double translation_threshold = 0.1;
       double rotation_threshold = 0.05;
       if (translation_diff < translation_threshold && rotation_diff < rotation_threshold)
         return;
     }
+    pcl::PointCloud<pcl::PointXYZI>::Ptr this_keyframe_world(new pcl::PointCloud<pcl::PointXYZI>());
+    pcl::fromROSMsg(*cloud_msg, *this_keyframe_world);
 
     pcl::PointCloud<pcl::PointXYZI>::Ptr this_keyframe(new pcl::PointCloud<pcl::PointXYZI>());
-    pcl::fromROSMsg(*cloud_msg, *this_keyframe);
+    // Eigen::Matrix4f T_translation_only_inv = Eigen::Matrix4f::Identity();
+    // T_translation_only_inv(0, 3) = -current_pose.translation().x();
+    // T_translation_only_inv(1, 3) = -current_pose.translation().y();
+    // T_translation_only_inv(2, 3) = -current_pose.translation().z();
+
+    // pcl::fromROSMsg(*cloud_msg, *this_keyframe);
+    Eigen::Matrix4f T_W_B_inv = current_pose.inverse().matrix().cast<float>();
+
+    pcl::transformPointCloud(*this_keyframe_world, *this_keyframe, T_W_B_inv);
+
     keyframe_clouds_.push_back(this_keyframe);
     frontend_poses_.push_back(current_pose);
     if (keyframe_count_ == 0)
@@ -139,30 +157,93 @@ private:
     // <历史关键帧 ID, 距离分数>
     std::pair<int, float> loop_result = scManager_.detectLoopClosureID();
     int loop_kf_idx = loop_result.first;
-
+    float sc_yaw_diff = loop_result.second;
     if (loop_kf_idx != -1)
     {
-      RCLCPP_INFO(this->get_logger(), "Loop Candidate Found! Curr: %d, Hist: %d. Running ICP...", keyframe_count_, loop_kf_idx);
-
-      std::optional<gtsam::Pose3> icp_relative_pose = performICP(loop_kf_idx, current_pose, this_keyframe);
-
-      if (icp_relative_pose.has_value())
+      loop_consistency_queue_.push_back({keyframe_count_, loop_kf_idx});
+      if (loop_consistency_queue_.size() > CONSISTENCY_WINDOW)
       {
-        if (icp_relative_pose.value().matrix().hasNaN())
+        loop_consistency_queue_.pop_front();
+      }
+      // 2. 检查队列是否填满且满足“连续性”
+      bool is_consistent = false;
+      if (loop_consistency_queue_.size() == CONSISTENCY_WINDOW)
+      {
+        is_consistent = true;
+        for (size_t i = 1; i < loop_consistency_queue_.size(); ++i)
         {
-          RCLCPP_WARN(this->get_logger(), "Poisonous ICP pose (NaN detected)! Rejecting.");
-          return; // 丢弃这个回环
+          int curr_id_diff = loop_consistency_queue_[i].first - loop_consistency_queue_[i - 1].first;
+          int hist_id_diff = loop_consistency_queue_[i].second - loop_consistency_queue_[i - 1].second;
+
+          // 理想状态下，curr_id_diff 和 hist_id_diff 应该都接近 1
+          // 我们允许一定的跳变（比如由于关键帧提取频率不同导致的 ID 不完全连续）
+          if (std::abs(curr_id_diff - hist_id_diff) > 2)
+          {
+            is_consistent = false;
+            break;
+          }
         }
-        RCLCPP_INFO(this->get_logger(), "ICP Succeeded! Adding Loop Factor.");
-        gtSAMgraph_.add(gtsam::BetweenFactor<gtsam::Pose3>(
-            loop_kf_idx, keyframe_count_, icp_relative_pose.value(), loop_noise_));
-        loop_edges_.push_back({keyframe_count_, loop_kf_idx});
+      }
+      if (is_consistent)
+      {
+        double travel_distance = 0.0;
+        for (int i = loop_kf_idx; i < keyframe_count_; ++i)
+        {
+          travel_distance += (frontend_poses_[i + 1].translation() - frontend_poses_[i].translation()).norm();
+        }
+        if (travel_distance > 15.0) // 必须走出去 15 米以上才能回环
+        {
+          RCLCPP_INFO(this->get_logger(), "Loop Candidate Found! Curr: %d, Hist: %d. Running ICP...", keyframe_count_, loop_kf_idx);
+          gtsam::Pose3 pose_hist = isam_current_estimate_.at<gtsam::Pose3>(loop_kf_idx);
+          gtsam::Pose3 pose_curr_odom = frontend_poses_[keyframe_count_];
+
+          double odom_distance = pose_hist.between(pose_curr_odom).translation().norm();
+
+          // 假设最大允许的累计漂移率是 5% (0.05)
+          double max_possible_drift = travel_distance * 0.05;
+          // 加上一个基础容忍度，防止刚走不远时阈值太死
+          double allowed_search_radius = max_possible_drift + 2.0;
+
+          if (odom_distance > allowed_search_radius)
+          {
+            RCLCPP_WARN(this->get_logger(), "SC Fake Loop Detected! Odom distance %.2fm exceeds allowed drift %.2fm. Rejecting.",
+                        odom_distance, allowed_search_radius);
+          }
+          else
+          {
+            std::optional<gtsam::Pose3> icp_relative_pose = performICP(loop_kf_idx, current_pose, this_keyframe, sc_yaw_diff);
+
+            if (icp_relative_pose.has_value())
+            {
+              if (icp_relative_pose.value().matrix().hasNaN())
+              {
+                RCLCPP_WARN(this->get_logger(), "Poisonous ICP pose (NaN detected)! Rejecting.");
+                return; // 丢弃这个回环
+              }
+              RCLCPP_INFO(this->get_logger(), "ICP Succeeded! Adding Loop Factor.");
+              gtSAMgraph_.add(gtsam::BetweenFactor<gtsam::Pose3>(
+                  loop_kf_idx, keyframe_count_, icp_relative_pose.value(), loop_noise_));
+              loop_edges_.push_back({keyframe_count_, loop_kf_idx});
+            }
+            else
+            {
+              RCLCPP_WARN(this->get_logger(), "ICP Failed. Rejecting Loop.");
+            }
+          }
+        }
       }
       else
       {
-        RCLCPP_WARN(this->get_logger(), "ICP Failed. Rejecting Loop.");
+          // 如果 ScanContext 有输出但没通过一致性，保持沉默或打印低频率日志
+          if (keyframe_count_ % 10 == 0)
+            RCLCPP_DEBUG(this->get_logger(), "Loop candidate filtered by temporal consistency.");
       }
+    }else
+    {
+        // 如果 SC 没检测到回环，说明序列断了，清空队列
+        loop_consistency_queue_.clear();
     }
+
 
     isam_->update(gtSAMgraph_, initial_estimate_);
     isam_->update();
@@ -174,12 +255,12 @@ private:
     publishLoopConstraints();
     keyframe_count_++;
   }
-  std::optional<gtsam::Pose3> performICP(int loop_kf_idx, const gtsam::Pose3 &pose_curr, pcl::PointCloud<pcl::PointXYZI>::Ptr curr_cloud)
+  std::optional<gtsam::Pose3> performICP(int loop_kf_idx, const gtsam::Pose3 &pose_curr, pcl::PointCloud<pcl::PointXYZI>::Ptr curr_cloud, float sc_yaw)
   {
     pcl::PointCloud<pcl::PointXYZI>::Ptr history_cloud = keyframe_clouds_[loop_kf_idx];
 
     pcl::VoxelGrid<pcl::PointXYZI> downSizeFilter;
-    downSizeFilter.setLeafSize(0.15, 0.15, 0.15);
+    downSizeFilter.setLeafSize(0.05, 0.05, 0.05);
     pcl::PointCloud<pcl::PointXYZI>::Ptr curr_cloud_ds(new pcl::PointCloud<pcl::PointXYZI>());
     pcl::PointCloud<pcl::PointXYZI>::Ptr history_cloud_ds(new pcl::PointCloud<pcl::PointXYZI>());
 
@@ -194,16 +275,26 @@ private:
                   curr_cloud_ds->points.size(), history_cloud_ds->points.size());
       return std::nullopt;
     }
-    gtsam::Pose3 pose_hist = isam_current_estimate_.at<gtsam::Pose3>(loop_kf_idx);
-    gtsam::Pose3 T_hist_curr_guess = pose_hist.between(pose_curr);
-    Eigen::Matrix4f guess_matrix = T_hist_curr_guess.matrix().cast<float>();
-    // T_hist_curr = 历史坐标系到当前坐标系的变换
+    // 拉到回环处开始匹配
+    Eigen::AngleAxisf yaw_angle(sc_yaw, Eigen::Vector3f::UnitZ());
+    Eigen::Matrix4f guess_matrix = Eigen::Matrix4f::Identity();
+    guess_matrix.block<3, 3>(0, 0) = yaw_angle.matrix();
+
+    // gtsam::Pose3 pose_hist = isam_current_estimate_.at<gtsam::Pose3>(loop_kf_idx);
     // gtsam::Pose3 T_hist_curr_guess = pose_hist.between(pose_curr);
     // Eigen::Matrix4f guess_matrix = T_hist_curr_guess.matrix().cast<float>();
 
+    // T_hist_curr = 历史坐标系到当前坐标系的变换
+    // gtsam::Pose3 T_hist_curr_guess = pose_hist.between(pose_curr);
+    // Eigen::Matrix4f guess_matrix = T_hist_curr_guess.matrix().cast<float>();
+    // if (T_hist_curr_guess.translation().norm() > 20.0)
+    // {
+    //   RCLCPP_WARN(this->get_logger(), "Odom says we are %.2fm away. Rejecting fake SC loop!", T_hist_curr_guess.translation().norm());
+    //   return std::nullopt;
+    // }
     pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> gicp;
-    gicp.setMaxCorrespondenceDistance(2.0); // 允许的最大匹配距离
-    gicp.setMaximumIterations(30);
+    gicp.setMaxCorrespondenceDistance(3.0); // 允许的最大匹配距离
+    gicp.setMaximumIterations(50);
     gicp.setTransformationEpsilon(1e-6);
     gicp.setEuclideanFitnessEpsilon(1e-6);
     gicp.setRANSACIterations(0);
@@ -214,7 +305,7 @@ private:
     pcl::PointCloud<pcl::PointXYZI>::Ptr aligned_cloud(new pcl::PointCloud<pcl::PointXYZI>());
     gicp.align(*aligned_cloud, guess_matrix);
 
-    if (gicp.hasConverged() && gicp.getFitnessScore() < 0.35)
+    if (gicp.hasConverged() && gicp.getFitnessScore() < 0.5)
     {
       Eigen::Matrix4d final_transform = gicp.getFinalTransformation().cast<double>();
       if (final_transform.hasNaN() || !final_transform.allFinite())
@@ -229,16 +320,27 @@ private:
       double rot_diff = icp_pose.rotation().localCoordinates(guess_pose.rotation()).norm();
 
       // 防护
-      if (trans_diff > 0.5 || rot_diff > 0.15)
+      if (trans_diff > 2.0)
       {
-        RCLCPP_WARN(this->get_logger(),
-                    "ICP converged but jump is TOO WILD (Trans: %.2fm, Rot: %.2f). Rejecting to prevent explosion!", trans_diff, rot_diff);
+        RCLCPP_WARN(this->get_logger(), "ICP converged but drift is ridiculously large (%.2fm). Rejecting.", trans_diff);
         return std::nullopt;
       }
+      // if (trans_diff > 0.5 || rot_diff > 0.15)
+      // {
+      //   RCLCPP_WARN(this->get_logger(),
+      //               "ICP converged but jump is TOO WILD (Trans: %.2fm, Rot: %.2f). Rejecting to prevent explosion!", trans_diff, rot_diff);
+      //   return std::nullopt;
+      // }
 
       return icp_pose;
     }
-    return std::nullopt;
+    else
+    {
+      // 打印死因：是因为没收敛，还是因为点云长得不像（分数太高）
+      RCLCPP_WARN(this->get_logger(), "ICP Failed. Converged: %d, Fitness Score: %f",
+                  gicp.hasConverged(), gicp.getFitnessScore());
+      return std::nullopt;
+    }
   }
   void publishOptimizedPath()
   {
@@ -343,10 +445,12 @@ private:
       if (!estimates_copy.exists(i))
         continue;
       gtsam::Pose3 T_optimized = estimates_copy.at<gtsam::Pose3>(i); // 后端优化后的位姿
-      gtsam::Pose3 T_frontend = frontend_poses_[i];                  // 当时的前端位姿
+                                                                     // gtsam::Pose3 T_frontend = frontend_poses_[i];                  // 当时的前端位姿
 
-      gtsam::Pose3 delta_correction = T_optimized * T_frontend.inverse();
-      Eigen::Matrix4f transform_matrix = delta_correction.matrix().cast<float>();
+      // gtsam::Pose3 delta_correction = T_optimized * T_frontend.inverse();
+      // Eigen::Matrix4f transform_matrix = delta_correction.matrix().cast<float>();
+
+      Eigen::Matrix4f transform_matrix = T_optimized.matrix().cast<float>();
 
       pcl::PointCloud<pcl::PointXYZI>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZI>());
       pcl::transformPointCloud(*keyframe_clouds_[i], *transformed_cloud, transform_matrix);
@@ -399,8 +503,9 @@ private:
         continue;
       gtsam::Pose3 T_optimized = estimates_copy.at<gtsam::Pose3>(i);
       gtsam::Pose3 T_frontend = frontend_poses_[i];
-      gtsam::Pose3 delta_correction = T_optimized * T_frontend.inverse();
-      Eigen::Matrix4f transform_matrix = delta_correction.matrix().cast<float>();
+      // gtsam::Pose3 delta_correction = T_optimized * T_frontend.inverse();
+      // Eigen::Matrix4f transform_matrix = delta_correction.matrix().cast<float>();
+      Eigen::Matrix4f transform_matrix = T_optimized.matrix().cast<float>();
 
       pcl::PointCloud<pcl::PointXYZI>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZI>());
       pcl::transformPointCloud(*keyframe_clouds_[i], *transformed_cloud, transform_matrix);
@@ -451,7 +556,8 @@ private:
   std::vector<std::pair<int, int>> loop_edges_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_loop_constraints_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr srv_save_map_;
-
+  std::deque<std::pair<int, int>> loop_consistency_queue_;
+  const int CONSISTENCY_WINDOW = 2; // 必须连续 2 次匹配成功才触发 ICP
   SCManager scManager_;
 
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sub_odom_;

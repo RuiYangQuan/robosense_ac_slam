@@ -3,7 +3,11 @@
 # 传感器消息话题
 topic:
     lid_topic: /rslidar_points
+    #lid_topic: /rs_lidar/points
+    #/rslidar_points /rs_lidar/points
     imu_topic: /rslidar_imu_data
+    #imu_topic: /rs_imu
+    #/rslidar_imu_data /rs_imu
     img_topic: /rs_camera/rgb
     # compressed_img_topic: /rs_camera/rgb # 临时手动选择 压缩话题是否同名等待商议
 
@@ -38,8 +42,8 @@ init_cov_bias_acc: 1e-3
 # init_cov_bias_acc: 1e-3
 
 # LIO
-point_filter_num : 1 # lidar点云采样频率 可以调整, 如果想滤除拖点必须设为1
-max_iteration : 5 # 最大优化次数 可以调整
+point_filter_num :  1 # lidar点云采样频率 可以调整, 如果想滤除拖点必须设为1
+max_iteration : 30 # 最大优化次数 可以调整
 filter_size_surf : 0.3 # source点栅格尺寸 可以调整 室内减小 (注意：室内外参数差异较大)
 filter_size_map : 0.3 # ikdtree地图栅格尺寸 可以调整 室内减小
 cube_side_length : 100 # 点云地图格子尺寸（m）
@@ -99,13 +103,13 @@ rs:
     degeneration:
         vis_degenerate_thresh: 0.1 # 0.35 # 视觉退化阈值，低于此值退化成LIO (注意：室内外参数差异较大)
         detect_lidar_degenetate: true # 开启点云退化检测
-        lidar_degenerate_thresh: 0.05 # 0.15 # 点云退化阈值
+        lidar_degenerate_thresh: 0.1 # 0.15 # 点云退化阈值
         reset_state_when_degenerate: true # 点云退化时重置状态
     
     # debug
     rs_debug: false
     print_log: false
-    save_log: false
+    save_log: true
 
     # 可视化
     vio_pub:
