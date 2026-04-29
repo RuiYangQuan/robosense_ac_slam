@@ -219,13 +219,13 @@ void ImuProcess::Prediction(const LidarMeasureGroup &lidar_meas, StatesGroup &st
     F_x.setIdentity();
     cov_w.setZero();
 
-    F_x.block<3, 3>(0, 0) = Exp(angvel_avr, -dt);
-    F_x.block<3, 3>(0, 9) = -Eye3d * dt;
+    F_x.block<3, 3>(0, 0) = Exp(angvel_avr, -dt);//δtheta/δtheta
+    F_x.block<3, 3>(0, 9) = -Eye3d * dt;//δtheta/δba
     // F_x.block<3,3>(3,0)  = R_imu * off_vel_skew * dt;
     F_x.block<3, 3>(3, 6) = Eye3d * dt;
-    F_x.block<3, 3>(6, 0) = -R_imu * acc_avr_skew * dt;
-    F_x.block<3, 3>(6, 12) = -R_imu * dt;
-    F_x.block<3, 3>(6, 15) = Eye3d * dt;
+    F_x.block<3, 3>(6, 0) = -R_imu * acc_avr_skew * dt;//δp/δtheta
+    F_x.block<3, 3>(6, 12) = -R_imu * dt;//δp/δba
+    F_x.block<3, 3>(6, 15) = Eye3d * dt;//δp/δv
 
     cov_w.block<3, 3>(0, 0).diagonal() = cov_gyr * dt * dt;
     cov_w.block<3, 3>(6, 6) = R_imu * cov_acc.asDiagonal() * R_imu.transpose() * dt * dt;
@@ -235,7 +235,7 @@ void ImuProcess::Prediction(const LidarMeasureGroup &lidar_meas, StatesGroup &st
     state_inout.cov = F_x * state_inout.cov * F_x.transpose() + cov_w;
 
     /* propogation of IMU attitude */
-    R_imu = R_imu * Exp_f;
+    R_imu = R_imu * Exp_f;//先计算雅可比，再进行递推--为了协方差算得快
 
     /* Specific acceleration (global frame) of IMU */
     acc_imu = R_imu * acc_avr + state_inout.gravity;
@@ -257,7 +257,7 @@ void ImuProcess::Prediction(const LidarMeasureGroup &lidar_meas, StatesGroup &st
     Pose T_I_L(Lid_rot_to_IMU, Lid_offset_to_IMU, 0);
     T_W_I_pose.updatePoseRight(T_I_L);
     Pose &T_W_L = T_W_I_pose;
-    addRelTf(T_W_L);
+    addRelTf(T_W_L);//高频imu积分位姿用于点云去畸变
     f_I_state_L_utm << std::fixed << std::setprecision(6) << T_W_L.timestamp << " " << T_W_L.xyz.x()
                     << " " << T_W_L.xyz.y() << " " << T_W_L.xyz.z() << " " << T_W_L.q.x() << " "
                     << T_W_L.q.y() << " " << T_W_L.q.z() << " "
@@ -282,10 +282,10 @@ void ImuProcess::UndistortPcl(const LidarMeasureGroup &lidar_meas, PointCloudXYZ
   {
     cloud_ts[i] = lidar_meas.lidar_beg_time +
                   in_cloud->points[i].curvature / double(1000.0);
-  }
+  }//为点云中每个点赋予时间
   std::vector<int> instance(in_cloud->size(), -1);
   // double t1 = omp_get_wtime();
-  undistortPointCloud(cloud_ts, in_cloud, undis_cloud, instance);
+  undistortPointCloud(cloud_ts, in_cloud, undis_cloud, instance);//反向去畸变
   // double t2 = omp_get_wtime();
   // LINFO << "rs undistort time: " << t2 - t1 << REND;
   pcl_out = *undis_cloud;

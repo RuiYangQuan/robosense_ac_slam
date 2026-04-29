@@ -1,6 +1,6 @@
 /**
  * @file    back_node.cpp
- * @brief   基于scancontext和gtsam实现的SLAM后端功能
+ * @brief   基于scancontext和gtsam实现的SLAM后端回环和位姿优化功能
  * @author  qry
  * @date    2026-04-15
  * @version 1.0
@@ -44,7 +44,7 @@ public:
     // 初始化
     gtsam::ISAM2Params parameters;
     parameters.relinearizeThreshold = 0.1;
-    parameters.relinearizeSkip = 1;
+    parameters.relinearizeSkip = 1;//算力不足时可以调大
     isam_ = std::make_shared<gtsam::ISAM2>(parameters);
 
     rclcpp::QoS qos_profile = rclcpp::SensorDataQoS();
@@ -176,7 +176,6 @@ private:
           int hist_id_diff = loop_consistency_queue_[i].second - loop_consistency_queue_[i - 1].second;
 
           // 理想状态下，curr_id_diff 和 hist_id_diff 应该都接近 1
-          // 我们允许一定的跳变（比如由于关键帧提取频率不同导致的 ID 不完全连续）
           if (std::abs(curr_id_diff - hist_id_diff) > 2)
           {
             is_consistent = false;
@@ -191,7 +190,7 @@ private:
         {
           travel_distance += (frontend_poses_[i + 1].translation() - frontend_poses_[i].translation()).norm();
         }
-        if (travel_distance > 15.0) // 必须走出去 15 米以上才能回环
+        if (travel_distance > 10.0) // 必须走出去 10 米以上才能回环
         {
           RCLCPP_INFO(this->get_logger(), "Loop Candidate Found! Curr: %d, Hist: %d. Running ICP...", keyframe_count_, loop_kf_idx);
           gtsam::Pose3 pose_hist = isam_current_estimate_.at<gtsam::Pose3>(loop_kf_idx);
@@ -218,7 +217,7 @@ private:
               if (icp_relative_pose.value().matrix().hasNaN())
               {
                 RCLCPP_WARN(this->get_logger(), "Poisonous ICP pose (NaN detected)! Rejecting.");
-                return; // 丢弃这个回环
+                return; 
               }
               RCLCPP_INFO(this->get_logger(), "ICP Succeeded! Adding Loop Factor.");
               gtSAMgraph_.add(gtsam::BetweenFactor<gtsam::Pose3>(
@@ -246,7 +245,7 @@ private:
 
 
     isam_->update(gtSAMgraph_, initial_estimate_);
-    isam_->update();
+    isam_->update();//可以多迭代几次
     gtSAMgraph_.resize(0);
     initial_estimate_.clear();
     isam_current_estimate_ = isam_->calculateEstimate();
@@ -336,7 +335,6 @@ private:
     }
     else
     {
-      // 打印死因：是因为没收敛，还是因为点云长得不像（分数太高）
       RCLCPP_WARN(this->get_logger(), "ICP Failed. Converged: %d, Fitness Score: %f",
                   gicp.hasConverged(), gicp.getFitnessScore());
       return std::nullopt;

@@ -192,8 +192,8 @@ class ImuProcess
       // LINFO << "pose t:" << t << " next t:" << rel_next->first << REND;
       auto rel_prev = std::prev(rel_next);
       double ratio = (t - rel_prev->first) / (rel_next->first - rel_prev->first);
-      pose_at_t.xyz = (1 - ratio) * rel_prev->second.xyz + ratio * rel_next->second.xyz;
-      pose_at_t.q = rel_prev->second.q.slerp(ratio, rel_next->second.q);
+      pose_at_t.xyz = (1 - ratio) * rel_prev->second.xyz + ratio * rel_next->second.xyz;//平移插值
+      pose_at_t.q = rel_prev->second.q.slerp(ratio, rel_next->second.q);//旋转插值
     }
 
     pose_at_t.source = rel_next->second.source;
@@ -236,7 +236,7 @@ class ImuProcess
       if (pt_count % point_filter_num == 0) {
         // double timestamp = cloud_ptr->points[i].intensity; // NOTE: intensity represent timestamp
         double timestamp = cloud_ts[i];
-        if (timestamp - last_time > 2e-5) {
+        if (timestamp - last_time > 2e-5) {//小于这个时间间隔的点直接用上一个计算好的位姿进行变换--加速点云去畸变
           pt_pose = poseInterp(timestamp, pre_odom, cur_odom);
           t_mat = dst_pose_inv * pt_pose.matrix();
           last_time = timestamp;
@@ -321,9 +321,9 @@ class ImuProcess
     // cout << std::fixed << "undistortPointCloud from: " << cloud_ts[0]
     //        << " to: " << cloud_ts.back() << REND;
     bool ret1 = interpolate(rel_tf_queue_, cloud_ts[0],
-                            rel_tf_begin);
+                            rel_tf_begin);//获取点云开始时间的位姿
     bool ret2 = interpolate(rel_tf_queue_, cloud_ts.back(),
-                            rel_tf_end);
+                            rel_tf_end);//获取点云结束时间的位姿
     rel_tf_queue_mutex_.unlock();
 
     Eigen::Affine3d dst = Eigen::Affine3d::Identity();
