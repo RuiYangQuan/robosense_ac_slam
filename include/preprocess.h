@@ -1,7 +1,7 @@
 #pragma once
 #include "common/common.h"
 #include <sensor_msgs/msg/point_cloud2.hpp>
-//#include <livox_ros_driver2/msg/custom_msg.hpp>
+#include <livox_ros_driver2/msg/custom_msg.hpp>
 using namespace std;
 
 #define IS_VALID(a) ((abs(a) > 1e8) ? true : false)
@@ -65,8 +65,8 @@ public:
   void oust64_handler(const pcl::PointCloud<ouster_ros::Point> &msg);
   void velodyne_handler(pcl::PointCloud<robosense::Point> &msg, double ts);
   void xt32_handler(const pcl::PointCloud<xt32_ros::Point> &msg);
-  void robosense_handler(pcl::PointCloud<robosense_ros::Point> &pl_orig, double cloud_abs_ts);
-  //void livox_handler(const livox_ros_driver2::msg::CustomMsg::SharedPtr &msg, CloudPtr &pcl_out, double &cloud_abs_ts);
+  void robosense_handler(pcl::PointCloud<robosense_ros::Point> &msg, double cloud_abs_ts);
+  void livox_handler(const pcl::PointCloud<livox_ros::Point> &msg, double &cloud_abs_ts);
 
   CloudPtr pcl_out;
   PointCloudXYZI pl_full, pl_corn, pl_surf;

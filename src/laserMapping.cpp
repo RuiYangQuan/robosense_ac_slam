@@ -1322,10 +1322,10 @@ namespace robosense
             total_distance += (state.pos_end - position_last).norm();
             position_last = state.pos_end;
 
-            VD(DIM_STATE)
-            K_sum = K.rowwise().sum();
-            VD(DIM_STATE)
-            P_diag = state.cov.diagonal();
+            //VD(DIM_STATE)
+            //K_sum = K.rowwise().sum();
+            //VD(DIM_STATE)
+           // P_diag = state.cov.diagonal();
             // cout<<"K: "<<K_sum.transpose()<<endl;
             // cout<<"P: "<<P_diag.transpose()<<endl;
             // cout<<"position: "<<state.pos_end.transpose()<<" total distance:

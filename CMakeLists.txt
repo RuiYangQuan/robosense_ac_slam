@@ -321,12 +321,10 @@ target_link_libraries(slam_node
 	${YAML_CPP_LIBRARIES}
 )
 
-# ================= 修复：后端节点的完整配置 =================
 # 编译后端节点
 add_executable(back_node src/back_node.cpp)
 target_compile_definitions(back_node PRIVATE PCL_NO_PRECOMPILE)
 
-# 2. 显式添加 PCL 和 GTSAM 的头文件路径
 target_include_directories(back_node
 	PUBLIC
 		include
@@ -334,7 +332,6 @@ target_include_directories(back_node
 		${GTSAM_INCLUDE_DIR}
 )
 
-# 3. 为后端节点注入 ROS2 的环境依赖 (解决找不到 rclcpp 和消息的问题)
 ament_target_dependencies(
 	back_node
 	rclcpp
@@ -346,20 +343,18 @@ ament_target_dependencies(
 	livox_ros_driver2
 )
 
-# 1. 链接所需的库 (引入 ScanContext, GTSAM 和 PCL)
 target_link_libraries(back_node
 	scancontext_lib
 	gtsam
 	${PCL_LIBRARIES}
-	pcl_common # 强制指定目标名
-	pcl_registration # 强制指定 SVD 所在的配准模块
-	flann_cpp # 补充 FLANN 依赖
+	pcl_common 
+	pcl_registration 
+	flann_cpp 
 	lz4
-	/usr/lib/x86_64-linux-gnu/libpcl_common.so # Ubuntu 22.04 物理路径终极兜底
-	/usr/lib/x86_64-linux-gnu/libpcl_registration.so
+	#/usr/lib/x86_64-linux-gnu/libpcl_common.so # Ubuntu 22.04 物理路径终极兜底
+	#/usr/lib/x86_64-linux-gnu/libpcl_registration.so
 )
 if(ROS_VERSION STREQUAL "ROS1")
-	# do nothing
 elseif(ROS_VERSION STREQUAL "ROS2")
 	ament_export_libraries(fast_livo)
 	ament_export_dependencies(vikit_common)
@@ -371,10 +366,8 @@ elseif(ROS_VERSION STREQUAL "ROS2")
 	install(TARGETS fast_livo)
 	install(TARGETS vikit_common)
 
-	# 注意：安装路径统一使用 ${PROJECT_NAME} 更加规范
 	install(TARGETS slam_node DESTINATION lib/${PROJECT_NAME})
 	install(TARGETS back_node DESTINATION lib/${PROJECT_NAME})
 
-	# 4. 关键：ament_package() 必须是整个 CMake 的最后一行
 	ament_package()
 endif()

@@ -108,17 +108,8 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
       }
       else
       {
-        if (p_pre_->lidar_type == Livox)
-        {
-          LINFO << "Using Livox CustomMsg Subscriber..." << REND;
-          livox_sub_ = ros2_node->create_subscription<livox_ros_driver2::msg::CustomMsg>(
-              lid_topic, 100, std::bind(&FastLivoSlamApp::LivoxCallback, this, std::placeholders::_1));
-        }
-        else
-        {
-          lidar_sub_ = ros2_node->create_subscription<sensor_msgs::msg::PointCloud2>(lid_topic, 100, std::bind(&FastLivoSlamApp::LidarCallback, this, std::placeholders::_1));
-          image_sub_ = ros2_node->create_subscription<sensor_msgs::msg::Image>(img_topic, 300, std::bind(&FastLivoSlamApp::ImageCallback, this, std::placeholders::_1));
-        }
+        lidar_sub_ = ros2_node->create_subscription<sensor_msgs::msg::PointCloud2>(lid_topic, 100, std::bind(&FastLivoSlamApp::LidarCallback, this, std::placeholders::_1));
+        image_sub_ = ros2_node->create_subscription<sensor_msgs::msg::Image>(img_topic, 300, std::bind(&FastLivoSlamApp::ImageCallback, this, std::placeholders::_1));
       }
       restart_signal_sub_ = ros2_node->create_subscription<EmptyMsgs>("/fast_livo/restart_signal", 10, std::bind(&FastLivoSlamApp::RestartSignalCallback, this, std::placeholders::_1));
 #endif
@@ -433,7 +424,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
         this->pubLaserCloudFullResRGB_->publish(laserCloudmsg);
         LINFO << "cloud_register_rgb_func——1================" << REND;
       };
-      slam_ptr_->SetLaserCloudFullResRGBCallback(cloud_register_rgb_func);//rgb点云
+      slam_ptr_->SetLaserCloudFullResRGBCallback(cloud_register_rgb_func); // rgb点云
 
       pubSubVisualCloud_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_visual_sub_map", 100);
       visual_sub_map_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr)
@@ -444,7 +435,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
         laserCloudmsg.header.frame_id = "camera_init";
         this->pubSubVisualCloud_->publish(laserCloudmsg);
       };
-      slam_ptr_->SetSubVisualCloudCallback(visual_sub_map_func_);//视觉子图
+      slam_ptr_->SetSubVisualCloudCallback(visual_sub_map_func_); // 视觉子图
 
       pubLaserCloudEffect_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_effected", 100);
       cloud_effected_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr)
@@ -455,7 +446,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
         laserCloudmsg.header.frame_id = "camera_init";
         this->pubLaserCloudEffect_->publish(laserCloudmsg);
       };
-      slam_ptr_->SetLaserCloudEffectCallback(cloud_effected_func_);//降采样后的点云
+      slam_ptr_->SetLaserCloudEffectCallback(cloud_effected_func_); // 降采样后的点云
 
       pubLaserCloudMap_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/Laser_map", 100);
       laser_map_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr)
@@ -466,7 +457,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
         laserCloudmsg.header.frame_id = "camera_init";
         this->pubLaserCloudMap_->publish(laserCloudmsg);
       };
-      slam_ptr_->SetLaserCloudMapCallback(laser_map_func_);//lio局部地图
+      slam_ptr_->SetLaserCloudMapCallback(laser_map_func_); // lio局部地图
 
       // odom publisher
       pubOdomAftMapped_ = ros2_node->create_publisher<nav_msgs::msg::Odometry>("/aft_mapped_to_init", 10);
@@ -501,7 +492,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
 
         this->pubOdomAftMapped_->publish(*odomAftMapped);
       };
-      slam_ptr_->SetOdomAftMappedCallback(odom_aft_mapped_func_);//lio位姿
+      slam_ptr_->SetOdomAftMappedCallback(odom_aft_mapped_func_); // lio位姿
 
       // path publisher
       pubPath_ = ros2_node->create_publisher<nav_msgs::msg::Path>("/path", 10);
@@ -535,7 +526,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
       //  imu_ptr->header.seq_id = imu_msg_ptr->header.seq;
       imu_ptr->orientation.x = imu_msg_ptr->orientation.x;
       imu_ptr->orientation.y = imu_msg_ptr->orientation.y;
-      imu_ptr->orientation.z = imu_msg_ptr->orientation.z; 
+      imu_ptr->orientation.z = imu_msg_ptr->orientation.z;
       imu_ptr->orientation.w = imu_msg_ptr->orientation.w;
       imu_ptr->angular_velocity.x = imu_msg_ptr->angular_velocity.x;
       imu_ptr->angular_velocity.y = imu_msg_ptr->angular_velocity.y;
@@ -571,7 +562,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
       {
         pcl::PointCloud<robosense_ros::Point> pl_orig;
         pcl::fromROSMsg(*msg, pl_orig);
-        
+
         // 安全校验：防止收到空帧导致程序崩溃
         if (pl_orig.points.empty()) {
             RCLCPP_WARN(rclcpp::get_logger("rclcpp"), "Received empty Robosense cloud!");
@@ -583,7 +574,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
       }
       case Livox:
       {
-        pcl::PointCloud<robosense_ros::Point> pl_orig;
+        pcl::PointCloud<livox_ros::Point> pl_orig;
         pcl::fromROSMsg(*msg, pl_orig);
         if (pl_orig.points.empty())
         {
@@ -633,48 +624,10 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
 
     std::ofstream f_sensor_buf(std::string(PROJECT_PATH) + "/Log/raw_sensor.txt", ios::out);
     std::mutex mtx_cb;
-     /**
+    /**
      * @brief Livox激光雷达数据回调函数
      * @param msg 点云消息
      */
-#ifdef USE_ROS2
-    void FastLivoSlamApp::LivoxCallback(const livox_ros_driver2::msg::CustomMsg::SharedPtr msg)
-    {
-      double sys_t = GetTimeNowInSecond();
-      // Livox CustomMsg 的 timebase 是纳秒，需要转为秒。这通常代表该帧第一个点的时间
-      double header_ts = static_cast<double>(msg->timebase) / 1e9;
-
-      // 时间回跳检测防呆
-      if (header_ts < LidarCallback_last_header_t_)
-      {
-        LERROR << "LiDAR time loop back detected! Current: " << header_ts
-               << ", Last: " << LidarCallback_last_header_t_ << REND;
-      }
-      LidarCallback_last_sys_t_ = sys_t;
-      LidarCallback_last_header_t_ = header_ts;
-
-      CloudPtr ptr(new PointCloudXYZI());
-      double cloud_abs_ts;
-
-      double b_t = omp_get_wtime();
-
-    //  p_pre_->livox_handler(msg, ptr, cloud_abs_ts);
-
-      double e_t = omp_get_wtime();
-
-      if (!ptr || ptr->empty())
-      {
-        LERROR << "Livox cloud empty after preprocess!" << REND;
-        return;
-      }
-
-      printf("[ INPUT ] Livox preprocess cloud done, header_ts: %.6f cloud_ts: %.6f "
-             "size: %d cost(ms): %f.\n",
-             header_ts, cloud_abs_ts, int(ptr->points.size()), (e_t - b_t) * 1000);
-
-      slam_ptr_->AddData(ptr, cloud_abs_ts);
-    }
-#endif
     /**
      * @brief 激光雷达数据回调函数
      * @param msg 点云消息

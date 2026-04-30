@@ -3,19 +3,21 @@
 #include <Eigen/Eigen>
 #include <pcl/point_types.h>
 #ifdef USE_ROS2
-//#include <livox_ros_driver2/msg/custom_msg.hpp>
+// #include <livox_ros_driver2/msg/custom_msg.hpp>
 #endif
 #define RS_POINT 1
 
 // RS_META
-namespace robosense {
-struct EIGEN_ALIGN16 Point {
-  PCL_ADD_POINT4D;
-  float intensity;
-  std::uint16_t ring = 0;
-  double timestamp = 0;
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-};
+namespace robosense
+{
+  struct EIGEN_ALIGN16 Point
+  {
+    PCL_ADD_POINT4D;
+    float intensity;
+    std::uint16_t ring = 0;
+    double timestamp = 0;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  };
 } // namespace robosense
 POINT_CLOUD_REGISTER_POINT_STRUCT(
     robosense::Point,
@@ -36,51 +38,65 @@ namespace robosense_ros
 } // namespace robosense_ros
 POINT_CLOUD_REGISTER_POINT_STRUCT(robosense_ros::Point,
                                   (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(double, timestamp, timestamp)(std::uint16_t, ring, ring))
-// others
-namespace velodyne_ros {
-  struct EIGEN_ALIGN16 Point {
-      PCL_ADD_POINT4D;
-      float intensity;
-      float time;
-      uint16_t ring;
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+// Mid360s
+namespace livox_ros
+{
+  struct EIGEN_ALIGN16 Point
+  {
+    PCL_ADD_POINT4D;
+    float intensity;
+    double timestamp = 0;
+    std::uint8_t tag = 0;//质量标签(判断噪点)
+    std::uint8_t line = 0;    //激光发射器线号
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   };
-}  // namespace velodyne_ros
-POINT_CLOUD_REGISTER_POINT_STRUCT(velodyne_ros::Point,
-    (float, x, x)
-    (float, y, y)
-    (float, z, z)
-    (float, intensity, intensity)
-    (uint16_t, ring, ring)
-)
+} // namespace robosense_ros
+POINT_CLOUD_REGISTER_POINT_STRUCT(livox_ros::Point,
+                                  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(double, timestamp, timestamp)(std::uint8_t, tag, tag)(std::uint8_t, line, line))
 
-namespace ouster_ros {
-  struct EIGEN_ALIGN16 Point {
-      PCL_ADD_POINT4D;
-      float intensity;
-      uint32_t t;
-      uint16_t reflectivity;
-      uint8_t ring;
-      uint16_t ambient;
-      uint32_t range;
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+// others
+namespace velodyne_ros
+{
+  struct EIGEN_ALIGN16 Point
+  {
+    PCL_ADD_POINT4D;
+    float intensity;
+    float time;
+    uint16_t ring;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   };
-}  // namespace ouster_ros
+} // namespace velodyne_ros
+POINT_CLOUD_REGISTER_POINT_STRUCT(velodyne_ros::Point,
+                                  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(uint16_t, ring, ring))
+
+namespace ouster_ros
+{
+  struct EIGEN_ALIGN16 Point
+  {
+    PCL_ADD_POINT4D;
+    float intensity;
+    uint32_t t;
+    uint16_t reflectivity;
+    uint8_t ring;
+    uint16_t ambient;
+    uint32_t range;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  };
+} // namespace ouster_ros
 
 namespace xt32_ros
 {
-struct EIGEN_ALIGN16 Point
-{
-  PCL_ADD_POINT4D;
-  float intensity;
-  double timestamp;
-  uint16_t ring;
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-};
+  struct EIGEN_ALIGN16 Point
+  {
+    PCL_ADD_POINT4D;
+    float intensity;
+    double timestamp;
+    uint16_t ring;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  };
 } // namespace xt32_ros
 POINT_CLOUD_REGISTER_POINT_STRUCT(xt32_ros::Point,
                                   (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(double, timestamp, timestamp)(uint16_t, ring, ring))
-
 
 // clang-format off
 POINT_CLOUD_REGISTER_POINT_STRUCT(ouster_ros::Point,

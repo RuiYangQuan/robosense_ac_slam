@@ -11,10 +11,14 @@ topic:
     #Airy激光
     # lid_topic: /rslidar_points
     # imu_topic: /rslidar_imu_data
+    # img_topic: /rs_camera/rgb
+    # compressed_img_topic: /rs_camera/rgb # 临时手动选择 压缩话题是否同名等待商议
     
     #Mid360s激光
     lid_topic: /livox/lidar
     imu_topic: /livox/imu
+    img_topic: /rs_camera/rgb
+    compressed_img_topic: /rs_camera/rgb # 临时手动选择 压缩话题是否同名等待商议
 
 
 # 传感器开关
