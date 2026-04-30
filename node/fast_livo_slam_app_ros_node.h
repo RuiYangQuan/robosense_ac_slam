@@ -83,6 +83,7 @@ class FastLivoSlamApp {
   slam::FastLivoSlam::Ptr slam_ptr_;
 
   // input
+  void LivoxCallback(const livox_ros_driver2::msg::CustomMsg::SharedPtr msg);
   void LidarCallback(const PointCloud2MsgsConstPtr msg);
   void ImuCallback(const ImuMsgsConstPtr imu_msg_ptr);
   void ImageCallback(const ImageMsgsConstPtr image_ptr);
@@ -109,6 +110,7 @@ class FastLivoSlamApp {
   //void ZeroCopyImageCallback(const ZeroCopyImageMsgsConstPtr image_ptr);
   
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr lidar_sub_;
+  rclcpp::Subscription<livox_ros_driver2::msg::CustomMsg>::SharedPtr livox_sub_; // 增加 Livox 订阅器
   //rclcpp::Subscription<robosense_msgs::msg::RsPointCloud>::SharedPtr rs_zerocopy_lidar_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;

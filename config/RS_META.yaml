@@ -2,14 +2,20 @@
 
 # 传感器消息话题
 topic:
-    lid_topic: /rslidar_points
+    #AC1激光
     #lid_topic: /rs_lidar/points
-    #/rslidar_points /rs_lidar/points
-    imu_topic: /rslidar_imu_data
     #imu_topic: /rs_imu
-    #/rslidar_imu_data /rs_imu
-    img_topic: /rs_camera/rgb
+    #img_topic: /rs_camera/rgb
     # compressed_img_topic: /rs_camera/rgb # 临时手动选择 压缩话题是否同名等待商议
+
+    #Airy激光
+    # lid_topic: /rslidar_points
+    # imu_topic: /rslidar_imu_data
+    
+    #Mid360s激光
+    lid_topic: /livox/lidar
+    imu_topic: /livox/imu
+
 
 # 传感器开关
 img_enable : 0 # 0代表不使用图像 LIO模式
@@ -133,7 +139,7 @@ pcd_save:
     pcd_out: "xxx.pcd" # 支持.pcd .ply
 
 preprocess:
-    lidar_type: 2 # 1:Livox LiDAR  2:RS Meta(AC)  3:OUST64  4:XT32  5:Mid360
+    lidar_type: 6 # 1:Livox LiDAR  2:RS Meta(AC)  3:OUST64  4:XT32  5:Airy 6:Mid360
     scan_line: 4 # 16  64  32
     blind: 0.5 # blind x m disable
     blind_max: 100.0

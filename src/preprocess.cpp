@@ -63,19 +63,12 @@ Preprocess::Preprocess(const std::string cfg_path)
  */
 Preprocess::~Preprocess() {}
 
-// void Preprocess::process(const livox_ros_driver::CustomMsg::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out)
-//{
-//   avia_handler(msg);
-//   *pcl_out = pl_surf;
-// }
-
 void Preprocess::robosense_handler(pcl::PointCloud<robosense_ros::Point> &pl_orig, double ts)
 {
   pl_surf.clear();
   int plsize = pl_orig.size();
   if (plsize == 0) return;
 
-  // 1. 【破除性能黑洞】：最纯粹的排序，没有任何冗余计算，耗时降至 1 毫秒！
   std::sort(pl_orig.points.begin(), pl_orig.points.end(), [](const robosense_ros::Point &a, const robosense_ros::Point &b) {
       return a.timestamp < b.timestamp;
   });
@@ -83,14 +76,12 @@ void Preprocess::robosense_handler(pcl::PointCloud<robosense_ros::Point> &pl_ori
   double time_head = pl_orig.points[0].timestamp;
   pl_surf.reserve(plsize);
 
-  // 2. 线性遍历提取
   for (int i = 0; i < plsize; ++i)
   {
     if (i % point_filter_num != 0) continue;
 
     const auto& pt = pl_orig.points[i];
     
-    // 【O(N) 高效异常拦截】：在这里做 NaN 检查，只执行几万次，不拖累排序
     if (std::isnan(pt.x) || std::isnan(pt.y) || std::isnan(pt.z) || std::isnan(pt.timestamp)) {
         continue;
     }
@@ -98,17 +89,12 @@ void Preprocess::robosense_handler(pcl::PointCloud<robosense_ros::Point> &pl_ori
     const double x = pt.x, y = pt.y, z = pt.z;
     const double dist_sqr = x * x + y * y + z * z;
     
-    // 严格过滤：剔除盲区，并抛弃极大概率是噪点的坐标系原点(x < 0.01)
-    // if (dist_sqr < blind * blind || x < 0.01) {
-    //     continue;
-    // }
 
     PointType added_pt;
     added_pt.normal_x = 0; added_pt.normal_y = 0; added_pt.normal_z = 0;
     added_pt.x = x; added_pt.y = y; added_pt.z = z;
     added_pt.intensity = pt.intensity;
     
-    // 完美转换相对时间 (ms)
     added_pt.curvature = (pt.timestamp - time_head) * 1000.0;
     
     pl_surf.points.push_back(added_pt);
@@ -116,6 +102,53 @@ void Preprocess::robosense_handler(pcl::PointCloud<robosense_ros::Point> &pl_ori
   
   *pcl_out = pl_surf;
 }
+/**
+ * @brief 处理mid360s激光雷达数据
+ * @param msg 输入的原始点云数据
+ * @param pcl_out 输出的点云数据
+ * @param cloud_abs_ts 输出的点云绝对时间
+ */
+// void Preprocess::livox_handler(const livox_ros_driver2::msg::CustomMsg::SharedPtr &msg, CloudPtr &pcl_out, double &cloud_abs_ts)
+// {
+//   pcl_out->clear();
+//   pcl_out->reserve(msg->point_num);
+  
+//   // 帧首时间基准 (秒)
+//   double time_base = msg->timebase / 1e9; 
+//   cloud_abs_ts = time_base; 
+  
+//   for (uint i = 0; i < msg->point_num; i++) {
+//     PointType added_pt;
+//     added_pt.x = msg->points[i].x;
+//     added_pt.y = msg->points[i].y;
+//     added_pt.z = msg->points[i].z;
+    
+//     // 映射反射率
+//     added_pt.intensity = msg->points[i].reflectivity;
+    
+//     // Livox 的 offset_time 是纳秒 (ns)，所以除以 1e6
+//     added_pt.curvature = msg->points[i].offset_time / 1e6; 
+    
+//     // 盲区过滤
+//     double range_sq = added_pt.x * added_pt.x + added_pt.y * added_pt.y + added_pt.z * added_pt.z;
+//     if (range_sq < blind_sq) {
+//       continue;
+//     }
+    
+//     // 利用上一回合提到的 tag 字段过滤早晚回波和噪点 (可选，强烈建议保留)
+//     // tag 规范：0x10 表示正常单回波，0x00 表示强回波，其余可能是粉尘或多重干扰
+//     if ((msg->points[i].tag & 0x30) == 0x10 || (msg->points[i].tag & 0x30) == 0x00) {
+//       pcl_out->points.push_back(added_pt);
+//     }
+//   }
+  
+//   // 更新整帧的最终绝对时间 (通常取该帧最后一个点的时间)
+//   if (msg->point_num > 0) {
+//     cloud_abs_ts = time_base + msg->points[msg->point_num - 1].offset_time / 1e9;
+//   }
+// }
+
+
 
 /**
  * @brief 处理Ouster 64线激光雷达数据

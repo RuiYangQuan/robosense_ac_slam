@@ -108,8 +108,17 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
       }
       else
       {
-        lidar_sub_ = ros2_node->create_subscription<sensor_msgs::msg::PointCloud2>(lid_topic, 100, std::bind(&FastLivoSlamApp::LidarCallback, this, std::placeholders::_1));
-        image_sub_ = ros2_node->create_subscription<sensor_msgs::msg::Image>(img_topic, 300, std::bind(&FastLivoSlamApp::ImageCallback, this, std::placeholders::_1));
+        if (p_pre_->lidar_type == Livox)
+        {
+          LINFO << "Using Livox CustomMsg Subscriber..." << REND;
+          livox_sub_ = ros2_node->create_subscription<livox_ros_driver2::msg::CustomMsg>(
+              lid_topic, 100, std::bind(&FastLivoSlamApp::LivoxCallback, this, std::placeholders::_1));
+        }
+        else
+        {
+          lidar_sub_ = ros2_node->create_subscription<sensor_msgs::msg::PointCloud2>(lid_topic, 100, std::bind(&FastLivoSlamApp::LidarCallback, this, std::placeholders::_1));
+          image_sub_ = ros2_node->create_subscription<sensor_msgs::msg::Image>(img_topic, 300, std::bind(&FastLivoSlamApp::ImageCallback, this, std::placeholders::_1));
+        }
       }
       restart_signal_sub_ = ros2_node->create_subscription<EmptyMsgs>("/fast_livo/restart_signal", 10, std::bind(&FastLivoSlamApp::RestartSignalCallback, this, std::placeholders::_1));
 #endif
@@ -560,10 +569,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
       }
       case ARIY:
       {
-        // 1. 使用我们之前在 preprocess.h 中定义的速腾专用点云结构体
         pcl::PointCloud<robosense_ros::Point> pl_orig;
-        
-        // 2. 将 ROS 2 消息解包为 PCL 点云
         pcl::fromROSMsg(*msg, pl_orig);
         
         // 安全校验：防止收到空帧导致程序崩溃
@@ -571,12 +577,21 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
             RCLCPP_WARN(rclcpp::get_logger("rclcpp"), "Received empty Robosense cloud!");
             break;
         }
-
-        // 3. 提取这一帧点云的基准时间戳（模仿 ac1 的逻辑，取最后一个点的时间）
         cloud_abs_ts = pl_orig.points.back().timestamp;
-
-        // 4. 调用对应的处理函数，将解包好的点云和时间戳传进去
         p_pre_->robosense_handler(pl_orig, cloud_abs_ts);
+        break;
+      }
+      case Livox:
+      {
+        pcl::PointCloud<robosense_ros::Point> pl_orig;
+        pcl::fromROSMsg(*msg, pl_orig);
+        if (pl_orig.points.empty())
+        {
+          RCLCPP_WARN(rclcpp::get_logger("rclcpp"), "Received empty Robosense cloud!");
+          break;
+        }
+        cloud_abs_ts = pl_orig.points.back().timestamp;
+        p_pre_->livox_handler(pl_orig, cloud_abs_ts);
         break;
       }
 
@@ -618,7 +633,48 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
 
     std::ofstream f_sensor_buf(std::string(PROJECT_PATH) + "/Log/raw_sensor.txt", ios::out);
     std::mutex mtx_cb;
+     /**
+     * @brief Livox激光雷达数据回调函数
+     * @param msg 点云消息
+     */
+#ifdef USE_ROS2
+    void FastLivoSlamApp::LivoxCallback(const livox_ros_driver2::msg::CustomMsg::SharedPtr msg)
+    {
+      double sys_t = GetTimeNowInSecond();
+      // Livox CustomMsg 的 timebase 是纳秒，需要转为秒。这通常代表该帧第一个点的时间
+      double header_ts = static_cast<double>(msg->timebase) / 1e9;
 
+      // 时间回跳检测防呆
+      if (header_ts < LidarCallback_last_header_t_)
+      {
+        LERROR << "LiDAR time loop back detected! Current: " << header_ts
+               << ", Last: " << LidarCallback_last_header_t_ << REND;
+      }
+      LidarCallback_last_sys_t_ = sys_t;
+      LidarCallback_last_header_t_ = header_ts;
+
+      CloudPtr ptr(new PointCloudXYZI());
+      double cloud_abs_ts;
+
+      double b_t = omp_get_wtime();
+
+    //  p_pre_->livox_handler(msg, ptr, cloud_abs_ts);
+
+      double e_t = omp_get_wtime();
+
+      if (!ptr || ptr->empty())
+      {
+        LERROR << "Livox cloud empty after preprocess!" << REND;
+        return;
+      }
+
+      printf("[ INPUT ] Livox preprocess cloud done, header_ts: %.6f cloud_ts: %.6f "
+             "size: %d cost(ms): %f.\n",
+             header_ts, cloud_abs_ts, int(ptr->points.size()), (e_t - b_t) * 1000);
+
+      slam_ptr_->AddData(ptr, cloud_abs_ts);
+    }
+#endif
     /**
      * @brief 激光雷达数据回调函数
      * @param msg 点云消息

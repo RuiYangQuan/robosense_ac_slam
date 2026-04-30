@@ -134,13 +134,18 @@ export RMW_FASTRTPS_USE_QOS_FROM_XML=1
 source install/setup.bash
 ros2 run slam slam_node
 ```
-
+编译：
+colcon build --packages-select slam   --cmake-args -DPCL_DIR=/usr/lib/x86_64-linux-gnu/cmake/pcl
 后端运行
 ros2 run slam back_node
 播放数据集
-ros2 bag play /opt/app/dataset/AC1_2026/slam/new_data/ac1_scene_20260318_135416
+ros2 bag play /opt/app/dataset/AC1_2026/slam/new_data/ac1_scene_20260318_135416 --clock -r 0.5
+/opt/app/dataset/Airy_2026/20260420/airy_record_4 --clock -r 0.5
 web端话题监听
+ssh -L 8777:localhost:8777 bwton@10.10.8.123
 ros2 run foxglove_bridge foxglove_bridge --ros-args -p port:=8777
+保存优化后的地图
+ros2 service call /backend/save_map std_srvs/srv/Trigger
 
 ## 5. 致谢
 

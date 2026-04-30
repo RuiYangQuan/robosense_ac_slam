@@ -35,10 +35,10 @@ Eigen::Matrix<T, 3, 3> Exp(const Eigen::Matrix<T, 3, 1> &ang_vel, const Ts &dt)
 
     if (ang_vel_norm > 0.0000001)
     {
-        Eigen::Matrix<T, 3, 1> r_axis = ang_vel / ang_vel_norm;
+        Eigen::Matrix<T, 3, 1> r_axis = ang_vel / ang_vel_norm;//单位旋转轴向量
         Eigen::Matrix<T, 3, 3> K;
 
-        K << SKEW_SYM_MATRX(r_axis);
+        K << SKEW_SYM_MATRX(r_axis);//反对称矩阵
 
         T r_ang = ang_vel_norm * dt;
 

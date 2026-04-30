@@ -1,6 +1,7 @@
 #pragma once
 #include "common/common.h"
 #include <sensor_msgs/msg/point_cloud2.hpp>
+//#include <livox_ros_driver2/msg/custom_msg.hpp>
 using namespace std;
 
 #define IS_VALID(a) ((abs(a) > 1e8) ? true : false)
@@ -12,7 +13,8 @@ enum LID_TYPE
   VELO16,
   OUST64,
   XT32,
-  ARIY = 5
+  ARIY = 5,
+  Livox = 6
 }; //{1, 2, 3}
 enum Feature
 {
@@ -37,20 +39,6 @@ enum E_jump
   Nr_inf,
   Nr_blind
 };
-namespace robosense_ros
-{
-  struct EIGEN_ALIGN16 Point
-  {
-    PCL_ADD_POINT4D;
-    float intensity;
-    double timestamp;
-    uint16_t ring;
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  };
-} // namespace robosense_ros
-// 告诉 PCL 库如何解析这个特定的 ROS 消息
-POINT_CLOUD_REGISTER_POINT_STRUCT(robosense_ros::Point,
-                                  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)(double, timestamp, timestamp)(std::uint16_t, ring, ring))
 struct orgtype
 {
   double range;
@@ -78,6 +66,7 @@ public:
   void velodyne_handler(pcl::PointCloud<robosense::Point> &msg, double ts);
   void xt32_handler(const pcl::PointCloud<xt32_ros::Point> &msg);
   void robosense_handler(pcl::PointCloud<robosense_ros::Point> &pl_orig, double cloud_abs_ts);
+  //void livox_handler(const livox_ros_driver2::msg::CustomMsg::SharedPtr &msg, CloudPtr &pcl_out, double &cloud_abs_ts);
 
   CloudPtr pcl_out;
   PointCloudXYZI pl_full, pl_corn, pl_surf;
