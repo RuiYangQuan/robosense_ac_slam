@@ -31,7 +31,7 @@ laser_point_cov : 0.0005 # 可以调整
 
 # IMU权重 (注意：室内外参数差异较大，室内参考rs_data_config/RS_META_indoor.yaml， 室外参考RS_META_outdoor.yaml)
 #use_cfg_cov: false # IMU协方差是否使用配置中的， false则自动计算
-use_cfg_cov: true # IMU协方差是否使用配置中的， false则自动计算
+use_cfg_cov: false # IMU协方差是否使用配置中的， false则自动计算
 cov_acc: 0.1
 cov_gyr: 0.1
 cov_bias_acc: 0.0001
@@ -54,10 +54,10 @@ init_cov_bias_acc: 1e-3
 # LIO
 point_filter_num :  1 # lidar点云采样频率 可以调整, 如果想滤除拖点必须设为1
 max_iteration : 30 # 最大优化次数 可以调整
-filter_size_surf : 0.3 # source点栅格尺寸 可以调整 室内减小 (注意：室内外参数差异较大)
-filter_size_map : 0.3 # ikdtree地图栅格尺寸 可以调整 室内减小
+filter_size_surf : 0.2 # source点栅格尺寸 可以调整 室内减小 (注意：室内外参数差异较大)
+filter_size_map : 0.2 # ikdtree地图栅格尺寸 可以调整 室内减小
 cube_side_length : 100 # 点云地图格子尺寸（m）
-lidar_max_range: 30 # lidar测距范围， 过大导致地图点过多降低性能
+lidar_max_range: 20 # lidar测距范围， 过大导致地图点过多降低性能
 
 # VIO
 grid_size : 40 # 图像地图格子尺寸（像素） 控制图像点密度，越大点越少. 已按照超传标准分辨率设置，内部自动乘以缩放系数img_scaling_ratio
@@ -113,7 +113,7 @@ rs:
     degeneration:
         vis_degenerate_thresh: 0.1 # 0.35 # 视觉退化阈值，低于此值退化成LIO (注意：室内外参数差异较大)
         detect_lidar_degenetate: true # 开启点云退化检测
-        lidar_degenerate_thresh: 0.1 # 0.15 # 点云退化阈值
+        lidar_degenerate_thresh: 0.15 # 0.15 # 点云退化阈值
         reset_state_when_degenerate: true # 点云退化时重置状态
     
     # debug
@@ -144,7 +144,7 @@ pcd_save:
 
 preprocess:
     lidar_type: 6 # 1:Livox LiDAR  2:RS Meta(AC)  3:OUST64  4:XT32  5:Airy 6:Mid360
-    scan_line: 4 # 16  64  32
+    scan_line: 32 # 16  64  32
     blind: 0.5 # blind x m disable
     blind_max: 100.0
 

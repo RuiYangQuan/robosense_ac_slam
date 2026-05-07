@@ -62,18 +62,19 @@ namespace robosense
      * 5. 根据编译宏 (USE_ROS1 或 USE_ROS2) 创建相应的 ROS 订阅者和发布者
      * 6. 设置各种回调函数用于处理 SLAM 结果和发布数据
      */
-FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
+    FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path)
+    {
 
-  /**************** 核心模块初始化  ****************/
-  // 保存配置路径，用于后续重启等操作
-  cfg_path_ = cfg_path;
-  
-  // 初始化点云预处理模块，负责滤波、特征提取等
-  p_pre_.reset(new Preprocess(cfg_path));
-  
-  // 初始化 Fast-LIVO SLAM 核心模块
-  slam_ptr_.reset(new slam::FastLivoSlam());
-  slam_ptr_->Init(cfg_path);
+      /**************** 核心模块初始化  ****************/
+      // 保存配置路径，用于后续重启等操作
+      cfg_path_ = cfg_path;
+
+      // 初始化点云预处理模块，负责滤波、特征提取等
+      p_pre_.reset(new Preprocess(cfg_path));
+
+      // 初始化 Fast-LIVO SLAM 核心模块
+      slam_ptr_.reset(new slam::FastLivoSlam());
+      slam_ptr_->Init(cfg_path);
 
       /**************** ROS 通信设置  ****************/
       // 从配置文件读取传感器数据话题名称
@@ -400,17 +401,18 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
       this->slam_ptr_->SetAllCloudImageCallback(rs_all_cloud_img_func_);
 
       //  // cloud publisher
-       pubLaserCloudFullRes_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_registered", 100);
-       cloud_register_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr) {
-         sensor_msgs::msg::PointCloud2 laserCloudmsg;
-         pcl::toROSMsg(*msg_ptr, laserCloudmsg);
-         laserCloudmsg.header.stamp = ros2_node->now();
-         laserCloudmsg.header.frame_id = "camera_init";
-         LINFO << "cloud_register_func_================" <<REND;
-         this->pubLaserCloudFullRes_->publish(laserCloudmsg);
-         LINFO << "cloud_register_func_1================" <<REND;
-       };
-       slam_ptr_->SetLaserCloudFullResCallback(cloud_register_func_);
+      pubLaserCloudFullRes_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_registered", 100);
+      cloud_register_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr)
+      {
+        sensor_msgs::msg::PointCloud2 laserCloudmsg;
+        pcl::toROSMsg(*msg_ptr, laserCloudmsg);
+        laserCloudmsg.header.stamp = ros2_node->now();
+        laserCloudmsg.header.frame_id = "camera_init";
+        LINFO << "cloud_register_func_================" << REND;
+        this->pubLaserCloudFullRes_->publish(laserCloudmsg);
+        LINFO << "cloud_register_func_1================" << REND;
+      };
+      slam_ptr_->SetLaserCloudFullResCallback(cloud_register_func_); // 降采样后的点云
 
       // cloud publisher
       pubLaserCloudFullResRGB_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud_registered", 100); // cloud_registered_rgb
@@ -446,7 +448,7 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
         laserCloudmsg.header.frame_id = "camera_init";
         this->pubLaserCloudEffect_->publish(laserCloudmsg);
       };
-      slam_ptr_->SetLaserCloudEffectCallback(cloud_effected_func_); // 降采样后的点云
+      slam_ptr_->SetLaserCloudEffectCallback(cloud_effected_func_); // 有效点云
 
       pubLaserCloudMap_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/Laser_map", 100);
       laser_map_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr)
@@ -513,6 +515,26 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
         this->pubPath_->publish(path_);
       };
       slam_ptr_->SetPathCallback(path_func_);
+
+      pub_frontend_global_map_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/frontend/global_map", 1);
+      auto global_map_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr)
+      {
+        if (this->pub_frontend_global_map_->get_subscription_count() > 0)
+        {
+          sensor_msgs::msg::PointCloud2 map_msg;
+          pcl::toROSMsg(*msg_ptr, map_msg);
+
+          map_msg.header.stamp = ros2_node->now();
+          map_msg.header.frame_id = "camera_init"; // 与 global 坐标系保持一致
+
+          LINFO << "Publishing Global Map. Points: " << msg_ptr->points.size() << REND;
+          this->pub_frontend_global_map_->publish(map_msg);
+        }
+      };
+
+      slam_ptr_->SetGlobalMapCallback(global_map_func_);
+      // 初始化原始点云发布器
+      pub_raw_cloud_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/frontend/raw_cloud", 10);
 #endif
     }
 
@@ -564,9 +586,10 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
         pcl::fromROSMsg(*msg, pl_orig);
 
         // 安全校验：防止收到空帧导致程序崩溃
-        if (pl_orig.points.empty()) {
-            RCLCPP_WARN(rclcpp::get_logger("rclcpp"), "Received empty Robosense cloud!");
-            break;
+        if (pl_orig.points.empty())
+        {
+          RCLCPP_WARN(rclcpp::get_logger("rclcpp"), "Received empty Robosense cloud!");
+          break;
         }
         cloud_abs_ts = pl_orig.points.back().timestamp;
         p_pre_->robosense_handler(pl_orig, cloud_abs_ts);
@@ -657,7 +680,22 @@ FastLivoSlamApp::FastLivoSlamApp(const std::string cfg_path) {
       printf("[ INPUT ] preprocess cloud done, header_ts: %.6f cloud_ts: %.6f "
              "size: %d cost(ms): %f.\n",
              header_ts, cloud_abs_ts, int(ptr->points.size()), (e_t - b_t) * 1000);
-
+      // 发布原始点云
+      if (pub_raw_cloud_->get_subscription_count() > 0)
+      {
+        int size = ptr->points.size();
+        CloudPtr msg_temp(new PointCloudXYZI(size, 1));
+        for (int i = 0; i < size; i++)
+        {
+          slam_ptr_->RGBpointBodyToWorld(&ptr->points[i],
+                              &msg_temp->points[i]);
+        }
+        sensor_msgs::msg::PointCloud2 raw_msg;
+          pcl::toROSMsg(*msg_temp, raw_msg);
+        //sensor_msgs::msg::PointCloud2 raw_msg = *msg_temp;
+        raw_msg.header.frame_id = "camera_init"; 
+        pub_raw_cloud_->publish(raw_msg);
+      }
       slam_ptr_->AddData(ptr, cloud_abs_ts);
     }
 

@@ -135,7 +135,16 @@ void Preprocess::livox_handler(const pcl::PointCloud<livox_ros::Point> &pl_orig,
     pl_buff[i].reserve(plsize);
   }
   uint valid_num = 0;
-
+  // === 新增：机器人本体包围盒（Bounding Box）参数 ===
+  // 建议：前期硬编码在这里调试，调通后移到 preprocess.h 或 yaml 配置文件中
+  // 请以 LiDAR 坐标系为原点，根据你的人形机器人尺寸进行测量和调整 (单位：米)
+  const float ROBOT_X_MIN = -0.3f; // 向后：背部极限距离
+  const float ROBOT_X_MAX = 0.4f;  // 向前：手臂往前摆动的最大距离
+  const float ROBOT_Y_MIN = -0.4f; // 向右：右臂摆动最大距离
+  const float ROBOT_Y_MAX = 0.4f;  // 向左：左臂摆动最大距离
+  const float ROBOT_Z_MIN = -1.2f; // 向下：腿部一直到地面的距离 (不要把地面也切了)
+  const float ROBOT_Z_MAX = 0.1f;  // 向上：LiDAR 底部的距离
+  // ==================================================
   if (feature_enabled)
   {
     for (uint i = 1; i < plsize; i++)
@@ -148,13 +157,19 @@ void Preprocess::livox_handler(const pcl::PointCloud<livox_ros::Point> &pl_orig,
         pl_full[i].z = pl_orig.points[i].z;
         pl_full[i].intensity = pl_orig.points[i].intensity;
         pl_full[i].curvature = pl_orig.points[i].timestamp / float(1000000); // use curvature as time of each laser points
-
+        // bool is_robot_body = (pl_full[i].x > ROBOT_X_MIN && pl_full[i].x < ROBOT_X_MAX &&
+        //                       pl_full[i].y > ROBOT_Y_MIN && pl_full[i].y < ROBOT_Y_MAX &&
+        //                       pl_full[i].z > ROBOT_Z_MIN && pl_full[i].z < ROBOT_Z_MAX);
         bool is_new = false;
+        // if (is_robot_body)
+        // {
+
         if ((abs(pl_full[i].x - pl_full[i - 1].x) > 1e-7) || (abs(pl_full[i].y - pl_full[i - 1].y) > 1e-7) ||
             (abs(pl_full[i].z - pl_full[i - 1].z) > 1e-7))
         {
           pl_buff[pl_orig.points[i].line].push_back(pl_full[i]);
         }
+        //}
       }
     }
     static int count = 0;
@@ -209,16 +224,23 @@ void Preprocess::livox_handler(const pcl::PointCloud<livox_ros::Point> &pl_orig,
                                      ? pl_full[i].curvature
                                      : pl_full[i - 1].curvature + 0.004166667f; // float(100/24000)
         }
-
-        if (valid_num % point_filter_num == 0)
-        {
-          if (pl_full[i].x * pl_full[i].x + pl_full[i].y * pl_full[i].y + pl_full[i].z * pl_full[i].z >= blind * blind)
+        // === 新增：本体空间位置判定 ===
+        bool is_robot_body = (pl_full[i].x > ROBOT_X_MIN && pl_full[i].x < ROBOT_X_MAX &&
+                              pl_full[i].y > ROBOT_Y_MIN && pl_full[i].y < ROBOT_Y_MAX &&
+                              pl_full[i].z > ROBOT_Z_MIN && pl_full[i].z < ROBOT_Z_MAX);
+        // 如果不是本体，才参与盲区判断并推入输出的 pl_surf 中
+        // if (!is_robot_body)
+        // {
+          if (valid_num % point_filter_num == 0)
           {
-            pl_surf.push_back(pl_full[i]);
-            // if (i % 100 == 0 || i == 0) printf("pl_full[i].curvature: %f \n",
-            // pl_full[i].curvature);
+            if (pl_full[i].x * pl_full[i].x + pl_full[i].y * pl_full[i].y + pl_full[i].z * pl_full[i].z >= blind * blind)
+            {
+              pl_surf.push_back(pl_full[i]);
+              // if (i % 100 == 0 || i == 0) printf("pl_full[i].curvature: %f \n",
+              // pl_full[i].curvature);
+            }
           }
-        }
+       // }
       }
     }
   }

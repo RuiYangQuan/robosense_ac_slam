@@ -118,6 +118,12 @@ class FastLivoSlamApp {
   rclcpp::Publisher<PointCloud2Msgs>::SharedPtr pubLaserCloudFullResRGB_, pubLaserCloudFullRes_,
       pubVisualCloud_, pubSubVisualCloud_, pubLaserCloudEffect_,
       pubLaserCloudMap_;
+  // 原始点云和全局地图发布器
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_raw_cloud_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_frontend_global_map_;
+  // 全局地图定时发布器
+  //rclcpp::TimerBase::SharedPtr global_map_timer_;
+
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubOdomAftMapped_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pubPath_;
   std::shared_ptr<tf2_ros::TransformBroadcaster> br_ptr_;
@@ -135,7 +141,6 @@ class FastLivoSlamApp {
   std::function<void(const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr)> laser_map_func_;
   std::function<void(const Pose &msg_ptr)> odom_aft_mapped_func_;
   std::function<void(const Pose &msg_ptr)> path_func_;
-
   // statics in previous version
   double LidarCallback_last_sys_t_ = 0;
   double LidarCallback_last_header_t_ = 0;

@@ -24,12 +24,12 @@ lidar_odometry:
     # ang_res_x: 0.4
     # ang_res_y: 0.94
     #Mid360s
-    N_SCAN: 120 # 59/0.5
-    Horizon_SCAN: 720 # 360/0.5
-    ang_bottom: 0    # AC1 30
+    N_SCAN: 32 # 59/0.2
+    Horizon_SCAN: 625 # 360/0.2
+    ang_bottom: 7    # AC1 30 7
     groundScanInd: 50
-    ang_res_x: 0.5
-    ang_res_y: 0.5
+    ang_res_x: 0.576
+    ang_res_y: 1.84375
 ###m1p
     # N_SCAN: 125 # 25/0.2
     # Horizon_SCAN: 600 # 120/0.2

@@ -549,7 +549,27 @@ class FastLivoSlam {
     std::lock_guard<std::mutex> lg(mx_cb_);
     path_cb_ = callback;
   }
+  void SetGlobalMapCallback(const std::function<void(const CloudPtr &msg_ptr)> &callback) {
+    std::lock_guard<std::mutex> lg(mx_cb_);
+    global_map_cb_ = callback;
+  }
 
+  void RGBpointBodyToWorld(PointType const *const pi, PointType *const po) {
+    V3D p_body(pi->x, pi->y, pi->z);
+    V3D p_global(state.rot_end *
+                     (Lidar_rot_to_IMU * p_body + Lidar_offset_to_IMU) +
+                 state.pos_end);
+    po->x = p_global(0);
+    po->y = p_global(1);
+    po->z = p_global(2);
+    po->intensity = pi->intensity;
+
+    float intensity = pi->intensity;
+    intensity = intensity - floor(intensity);
+
+    int reflection_map = intensity * 10000;
+  }
+  
  private:
   const std::string name() const {
     return "FastLivoSlam";
@@ -666,21 +686,6 @@ class FastLivoSlam {
     po[2] = p_global(2);
   }
 
-  void RGBpointBodyToWorld(PointType const *const pi, PointType *const po) {
-    V3D p_body(pi->x, pi->y, pi->z);
-    V3D p_global(state.rot_end *
-                     (Lidar_rot_to_IMU * p_body + Lidar_offset_to_IMU) +
-                 state.pos_end);
-    po->x = p_global(0);
-    po->y = p_global(1);
-    po->z = p_global(2);
-    po->intensity = pi->intensity;
-
-    float intensity = pi->intensity;
-    intensity = intensity - floor(intensity);
-
-    int reflection_map = intensity * 10000;
-  }
 
   // publish
   void publish_frame_world_rgb(lidar_selection::LidarSelectorPtr lidar_selector)
@@ -755,6 +760,17 @@ class FastLivoSlam {
     }
     if (pcd_save_en)
       *xyzi_map += *xyzi_scan;
+    if (global_map_cb_) {
+      static double last_global_map_time = 0.0;
+      double current_time =omp_get_wtime();
+      if (current_time - last_global_map_time > 3.0) {
+        if (xyzi_map && !xyzi_map->empty()) 
+        {
+            global_map_cb_(xyzi_map);
+        }
+        last_global_map_time = current_time;
+      }
+    }
   }
 
   void publish_visual_world_map() {
@@ -1005,6 +1021,8 @@ class FastLivoSlam {
   std::function<void(const CloudPtr &msg_ptr)> laser_cloud_map_cb_;
   std::function<void(const Pose &msg_ptr)> odom_aft_mapped_cb_;
   std::function<void(const Pose &msg_ptr)> path_cb_;
+  std::function<void(const CloudPtr &msg_ptr)> global_map_cb_;
+
 
   // 替代static变量的成员变量
   bool core_loop_first_{true};     // 用于替代CoreLoop中的static变量
