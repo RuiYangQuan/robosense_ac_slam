@@ -70,8 +70,19 @@ namespace robosense
       SensorData data;
       data.type = SensorType::LIDAR;
       data.timestamp = ts;
-      // data.cloud = std::make_shared<PointCloudXYZI>(*msg);
-      data.cloud.reset(new PointCloudXYZI(*msg));
+      data.cloud = std::make_shared<PointCloudXYZI>(*msg);
+      Eigen::Quaternionf q(0.000000, 0.99980, 0.000000, 0.02007);
+      Eigen::Vector3f t(0.0, 0.0, -0.47618);
+
+      Eigen::Matrix4f T_extrinsic = Eigen::Matrix4f::Identity();
+      T_extrinsic.block<3, 3>(0, 0) = q.toRotationMatrix();
+      T_extrinsic.block<3, 1>(0, 3) = t;
+      PointCloudXYZI::Ptr transformed_msg(new PointCloudXYZI());
+      pcl::transformPointCloud(*msg, *transformed_msg, T_extrinsic);
+
+      data.cloud.reset(new PointCloudXYZI(*transformed_msg));
+
+      //data.cloud.reset(new PointCloudXYZI(*msg));
 
       std::lock_guard<std::mutex> lk(mtx_raw_msg_buffer);
       if (ts_msg_buffer.size() &&
@@ -93,9 +104,32 @@ namespace robosense
     // 旋转矩阵，从IMU(右下前坐标系)到lidar(前左上坐标系)
     void FastLivoSlam::imu_cbk(const slam::Imu::ConstPtr &msg_in)
     {
+      std::shared_ptr<slam::Imu> msg(new slam::Imu(*msg_in));
+
+      // (对应：Roll = 180°, Pitch = -2.3°, Yaw = 0°)
+      Eigen::Matrix3d R_ext;
+      R_ext << 0.999194, 0.0, 0.040132,
+          0.0, -1.0, 0.0,
+          0.040132, 0.0, -0.999194;
+
+      Eigen::Vector3d acc(msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z);
+      Eigen::Vector3d gyr(msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z);
+
+      acc = R_ext * acc;
+      gyr = R_ext * gyr;
+
+      msg->linear_acceleration.x = acc.x();
+      msg->linear_acceleration.y = acc.y();
+      msg->linear_acceleration.z = acc.z();
+
+      msg->angular_velocity.x = gyr.x();
+      msg->angular_velocity.y = gyr.y();
+      msg->angular_velocity.z = gyr.z();
+
       SensorData data;
       data.type = SensorType::IMU;
-      data.imu = msg_in;
+      data.imu = msg;
+      //data.imu = msg_in;
 
       std::lock_guard<std::mutex> lk(mtx_raw_msg_buffer);
       double ts = msg_in->header.ToSec();
@@ -870,18 +904,19 @@ namespace robosense
         T_W_L_pose = Pose(state_propagat.rot_end, state_propagat.pos_end,
                           LidarMeasures.lidar_end_time);
         T_W_L_pose.updatePoseRight(T_I_L_pose);
-        lidar_odometry_->AddLiDAR(feats_undistort, T_W_L_pose);
-        *feats_undistort = lidar_odometry_->GetVlidaCloud();
+        //取消点云滤除
+       // lidar_odometry_->AddLiDAR(feats_undistort, T_W_L_pose);
+        //*feats_undistort = lidar_odometry_->GetVlidaCloud();
 
-        auto seg_res = lidar_odometry_->GetSegResult();
-        auto filter_res = lidar_odometry_->GetFilterResult();
+        //auto seg_res = lidar_odometry_->GetSegResult();
+        //auto filter_res = lidar_odometry_->GetFilterResult();
 
-        auto &pro_res = livo_result_->cloud_process_result;
-        pro_res->valid_size = seg_res->fullCloudIndex.size();
-        pro_res->valid_seg_size = seg_res->segmentedCloud.size();
-        pro_res->boundary_semantic_size = filter_res->segmentedCloud.size();
-        pro_res->boundary_size = filter_res->outlierCloud.size();
-        pro_res->non_boundary_size = filter_res->validCloud.size();
+        //auto &pro_res = livo_result_->cloud_process_result;
+        // pro_res->valid_size = seg_res->fullCloudIndex.size();
+        // pro_res->valid_seg_size = seg_res->segmentedCloud.size();
+        // pro_res->boundary_semantic_size = filter_res->segmentedCloud.size();
+        // pro_res->boundary_size = filter_res->outlierCloud.size();
+        // pro_res->non_boundary_size = filter_res->validCloud.size();
       }
 
       // 过滤远处点
@@ -1129,12 +1164,12 @@ namespace robosense
           PointType &point_world = feats_down_world->points[i];
           point_world.normal_x = point_world.normal_y = point_world.normal_z = 99;
           V3D p_body(point_body.x, point_body.y, point_body.z);
-          pointBodyToWorld(&point_body, &point_world);//转换到世界坐标系
+          pointBodyToWorld(&point_body, &point_world); // 转换到世界坐标系
           vector<float> pointSearchSqDis(NUM_MATCH_POINTS);
           auto &points_near = Nearest_Points[i];
           uint8_t search_flag = 0;
           double search_start = omp_get_wtime();
-          if (nearest_search_en)//只在第一次迭代、即将收敛时或者达到最大迭代次数前去搜树--提速 Trick
+          if (nearest_search_en) // 只在第一次迭代、即将收敛时或者达到最大迭代次数前去搜树--提速 Trick
           {
             /** Find the closest surfaces in the map **/
             ikdtree.Nearest_Search(point_world, NUM_MATCH_POINTS, points_near,
@@ -1158,7 +1193,7 @@ namespace robosense
           if (esti_plane(pabcd, points_near, 0.1f)) //(planeValid)
           {
             float pd2 = pabcd(0) * point_world.x + pabcd(1) * point_world.y +
-                        pabcd(2) * point_world.z + pabcd(3);//点到匹配距离
+                        pabcd(2) * point_world.z + pabcd(3); // 点到匹配距离
             float s = 1 - 0.9 * fabs(pd2) / sqrt(p_body.norm());
 
             if (s > 0.9)
@@ -1234,15 +1269,15 @@ namespace robosense
           V3D norm_vec(norm_p.x, norm_p.y, norm_p.z);
 
           /*** calculate the Measuremnt Jacobian matrix H ***/
-          V3D A(point_crossmat * state.rot_end.transpose() * norm_vec);//旋转雅可比矩阵--太秀了
+          V3D A(point_crossmat * state.rot_end.transpose() * norm_vec); // 旋转雅可比矩阵--太秀了
           Hsub.row(i) << VEC_FROM_ARRAY(A), norm_p.x, norm_p.y, norm_p.z;
 
           /*** Measuremnt: distance to the closest surface/corner ***/
-          meas_vec(i) = -norm_p.intensity;//点到面距离
+          meas_vec(i) = -norm_p.intensity; // 点到面距离
         }
         solve_const_H_time += omp_get_wtime() - solve_start;
 
-        //MatrixXd K(DIM_STATE, effct_feat_num);
+        // MatrixXd K(DIM_STATE, effct_feat_num);
 
         EKF_stop_flg = false;
         flg_EKF_converged = false;
@@ -1276,13 +1311,13 @@ namespace robosense
           H_T_H.block<6, 6>(0, 0) = Hsub_T * Hsub;
           // EigenSolver<Matrix<double, 6, 6>> es(H_T_H.block<6,6>(0,0));
           MD(DIM_STATE, DIM_STATE) &&K_1 =
-              (H_T_H + (state.cov / LASER_POINT_COV).inverse()).inverse();//卡尔曼增益
+              (H_T_H + (state.cov / LASER_POINT_COV).inverse()).inverse(); // 卡尔曼增益
           G.block<DIM_STATE, 6>(0, 0) =
               K_1.block<DIM_STATE, 6>(0, 0) * H_T_H.block<6, 6>(0, 0);
           auto vec = state_propagat - state;
-         // 在迭代滤波中，每一次更新不仅要让激光雷达的残差变小（HTz 部分），还要保证状态不能偏离 IMU 预测值太多（vec 部分起到类似正则化的作用）
+          // 在迭代滤波中，每一次更新不仅要让激光雷达的残差变小（HTz 部分），还要保证状态不能偏离 IMU 预测值太多（vec 部分起到类似正则化的作用）
           solution = K_1.block<DIM_STATE, 6>(0, 0) * HTz + vec -
-                     G.block<DIM_STATE, 6>(0, 0) * vec.block<6, 1>(0, 0);//
+                     G.block<DIM_STATE, 6>(0, 0) * vec.block<6, 1>(0, 0); //
           state += solution;
 
           rot_add = solution.block<3, 1>(0, 0);
@@ -1290,7 +1325,7 @@ namespace robosense
 
           if ((rot_add.norm() * R2D < 0.01) && (t_add.norm() * 100 < 0.015))
           {
-            flg_EKF_converged = true;//收敛
+            flg_EKF_converged = true; // 收敛
           }
 
           deltaR = rot_add.norm() * R2D;
@@ -1303,8 +1338,8 @@ namespace robosense
         if (flg_EKF_converged ||
             ((rematch_num == 0) && (iterCount == (NUM_MAX_ITERATIONS - 2))))
         {
-          //这里如果发生了局部最优导致伪收敛时，会在下一次迭代中重新搜树，给 EKF 继续优化的机会，如果继续和之前的位姿变化不大即正常收敛，就累积rematch_num直至结束匹配
-          //，但是如果伪收敛时，位姿变化较大了，说明搜树后状态发生了较大变化，EKF 还没有收敛，这时就重置rematch_num，继续迭代优化，直到真正收敛或者达到最大迭代次数
+          // 这里如果发生了局部最优导致伪收敛时，会在下一次迭代中重新搜树，给 EKF 继续优化的机会，如果继续和之前的位姿变化不大即正常收敛，就累积rematch_num直至结束匹配
+          // ，但是如果伪收敛时，位姿变化较大了，说明搜树后状态发生了较大变化，EKF 还没有收敛，这时就重置rematch_num，继续迭代优化，直到真正收敛或者达到最大迭代次数
           nearest_search_en = true;
           rematch_num++;
         }
@@ -1322,10 +1357,10 @@ namespace robosense
             total_distance += (state.pos_end - position_last).norm();
             position_last = state.pos_end;
 
-            //VD(DIM_STATE)
-            //K_sum = K.rowwise().sum();
-            //VD(DIM_STATE)
-           // P_diag = state.cov.diagonal();
+            // VD(DIM_STATE)
+            // K_sum = K.rowwise().sum();
+            // VD(DIM_STATE)
+            // P_diag = state.cov.diagonal();
             // cout<<"K: "<<K_sum.transpose()<<endl;
             // cout<<"P: "<<P_diag.transpose()<<endl;
             // cout<<"position: "<<state.pos_end.transpose()<<" total distance:

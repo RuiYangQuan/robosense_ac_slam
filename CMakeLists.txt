@@ -115,7 +115,7 @@ if(ROS_VERSION STREQUAL "ROS1")
 			eigen_conversions
 			cv_bridge
 			image_transport
-			livox_ros_driver2
+			#livox_ros_driver2
 	)
 	include_directories(${catkin_INCLUDE_DIRS})
 	catkin_package(
@@ -126,7 +126,7 @@ if(ROS_VERSION STREQUAL "ROS1")
 		message_runtime
 		cv_bridge
 		image_transport
-		livox_ros_driver2
+		#livox_ros_driver2
 		INCLUDE_DIRS
 		include
 	)
@@ -142,7 +142,7 @@ elseif(ROS_VERSION STREQUAL "ROS2")
 	find_package(pcl_conversions REQUIRED)
 	find_package(tf2_ros REQUIRED) # 添加 tf2_ros 依赖
 	find_package(std_srvs REQUIRED)
-	find_package(livox_ros_driver2 REQUIRED)
+	# find_package(livox_ros_driver2 REQUIRED)
 	# 寻找 PCL
 	#find_package(PCL REQUIRED)
 	# 显式请求 common 和 registration 等核心组件，防止遗漏
@@ -291,7 +291,7 @@ elseif(ROS_VERSION STREQUAL "ROS2")
 		image_transport
 		tf2_ros
 		#robosense_msgs
-		livox_ros_driver2
+		#livox_ros_driver2
 	)
 	ament_target_dependencies(
 		scancontext_lib
@@ -299,7 +299,7 @@ elseif(ROS_VERSION STREQUAL "ROS2")
 		sensor_msgs
 		cv_bridge
 		pcl_conversions
-		livox_ros_driver2
+		#livox_ros_driver2
 	)
 	# ament_target_dependencies(
 	# 	livo_initial
@@ -340,7 +340,7 @@ ament_target_dependencies(
 	pcl_conversions
 	visualization_msgs
 	std_srvs
-	livox_ros_driver2
+	#livox_ros_driver2
 )
 
 target_link_libraries(back_node

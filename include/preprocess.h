@@ -1,7 +1,7 @@
 #pragma once
 #include "common/common.h"
 #include <sensor_msgs/msg/point_cloud2.hpp>
-#include <livox_ros_driver2/msg/custom_msg.hpp>
+//#include <livox_ros_driver2/msg/custom_msg.hpp>
 using namespace std;
 
 #define IS_VALID(a) ((abs(a) > 1e8) ? true : false)

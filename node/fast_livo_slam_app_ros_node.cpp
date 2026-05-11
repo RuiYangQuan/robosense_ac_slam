@@ -515,26 +515,26 @@ namespace robosense
         this->pubPath_->publish(path_);
       };
       slam_ptr_->SetPathCallback(path_func_);
+      // 全局地图发布
+      //  pub_frontend_global_map_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/frontend/global_map", 1);
+      //  auto global_map_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr)
+      //  {
+      //    if (this->pub_frontend_global_map_->get_subscription_count() > 0)
+      //    {
+      //      sensor_msgs::msg::PointCloud2 map_msg;
+      //      pcl::toROSMsg(*msg_ptr, map_msg);
 
-      pub_frontend_global_map_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/frontend/global_map", 1);
-      auto global_map_func_ = [this](const pcl::PointCloud<pcl::PointXYZINormal>::Ptr &msg_ptr)
-      {
-        if (this->pub_frontend_global_map_->get_subscription_count() > 0)
-        {
-          sensor_msgs::msg::PointCloud2 map_msg;
-          pcl::toROSMsg(*msg_ptr, map_msg);
+      //     map_msg.header.stamp = ros2_node->now();
+      //     map_msg.header.frame_id = "camera_init"; // 与 global 坐标系保持一致
 
-          map_msg.header.stamp = ros2_node->now();
-          map_msg.header.frame_id = "camera_init"; // 与 global 坐标系保持一致
+      //     LINFO << "Publishing Global Map. Points: " << msg_ptr->points.size() << REND;
+      //     this->pub_frontend_global_map_->publish(map_msg);
+      //   }
+      // };
 
-          LINFO << "Publishing Global Map. Points: " << msg_ptr->points.size() << REND;
-          this->pub_frontend_global_map_->publish(map_msg);
-        }
-      };
-
-      slam_ptr_->SetGlobalMapCallback(global_map_func_);
+      // slam_ptr_->SetGlobalMapCallback(global_map_func_);
       // 初始化原始点云发布器
-      pub_raw_cloud_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/frontend/raw_cloud", 10);
+      //pub_raw_cloud_ = ros2_node->create_publisher<sensor_msgs::msg::PointCloud2>("/frontend/raw_cloud", 10);
 #endif
     }
 
@@ -680,22 +680,36 @@ namespace robosense
       printf("[ INPUT ] preprocess cloud done, header_ts: %.6f cloud_ts: %.6f "
              "size: %d cost(ms): %f.\n",
              header_ts, cloud_abs_ts, int(ptr->points.size()), (e_t - b_t) * 1000);
+      // 外参转换
+      // Eigen::Matrix3d lidar_ext_R; // Lidar到Sensor/Base_link的旋转矩阵
+      // Eigen::Vector3d lidar_ext_T(0.0, 0.0, -0.47618);
+      // double roll = M_PI;                 // 180度倒置
+      // double pitch = -2.3 * M_PI / 180.0; // -2.3度倾角
+      // double yaw = 0.0;
+      // lidar_ext_R = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) * Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) * Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
       // 发布原始点云
-      if (pub_raw_cloud_->get_subscription_count() > 0)
-      {
-        int size = ptr->points.size();
-        CloudPtr msg_temp(new PointCloudXYZI(size, 1));
-        for (int i = 0; i < size; i++)
-        {
-          slam_ptr_->RGBpointBodyToWorld(&ptr->points[i],
-                              &msg_temp->points[i]);
-        }
-        sensor_msgs::msg::PointCloud2 raw_msg;
-          pcl::toROSMsg(*msg_temp, raw_msg);
-        //sensor_msgs::msg::PointCloud2 raw_msg = *msg_temp;
-        raw_msg.header.frame_id = "camera_init"; 
-        pub_raw_cloud_->publish(raw_msg);
-      }
+      // if (pub_raw_cloud_->get_subscription_count() > 0)
+      // {
+      //   int size = ptr->points.size();
+      //   CloudPtr msg_temp(new PointCloudXYZI(size, 1));
+      //   for (int i = 0; i < size; i++)
+      //   {
+      //     const auto &pt_raw = ptr->points[i];
+      //     PointType pt_body = pt_raw;
+      //     Eigen::Vector3d point_vec(pt_raw.x, pt_raw.y, pt_raw.z);
+      //     point_vec = lidar_ext_R * point_vec + lidar_ext_T;
+      //     pt_body.x = point_vec.x();
+      //     pt_body.y = point_vec.y();
+      //     pt_body.z = point_vec.z();
+
+      //     slam_ptr_->RGBpointBodyToWorld(&pt_body,
+      //                                    &msg_temp->points[i]);
+      //   }
+      //   sensor_msgs::msg::PointCloud2 raw_msg;
+      //   pcl::toROSMsg(*msg_temp, raw_msg);
+      //   raw_msg.header.frame_id = "camera_init";
+      //   pub_raw_cloud_->publish(raw_msg);
+      // }
       slam_ptr_->AddData(ptr, cloud_abs_ts);
     }
 
